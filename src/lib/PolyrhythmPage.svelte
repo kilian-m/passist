@@ -12,7 +12,7 @@
 	} from '$lib/polyrhythm.mjs';
 
 	let nA = 5, nB = 7, selfMax = 4, passMin = 2.5, passMax = 4.5;
-	let allowZero = false, excludeHolds = false;
+	let allowZero = false, excludeHolds = true;
 	let res = null, genError = '', genInfo = '';
 	let itf = null;         // selected interface object
 	let selA = null, selB = null; // selected sequence indices (into res.seqsA/B)

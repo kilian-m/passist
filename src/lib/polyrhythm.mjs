@@ -39,7 +39,7 @@ export const defaultConfig = {
 	passMin: 2.5,     // inclusive
 	passMax: 4.5,     // inclusive
 	allowZero: false,
-	excludeHolds: false, // drop self 2s (a 2 stays in the same hand = hold)
+	excludeHolds: true, // drop self 2s (a 2 stays in the same hand = hold)
 };
 
 export const MAX_SEQS = 600000;
