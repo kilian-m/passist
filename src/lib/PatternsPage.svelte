@@ -1,4 +1,5 @@
 <script>
+	import { base } from '$app/paths';
 	import { knownSiteswaps } from '$lib/patterns.mjs';
 	import InputField from '$lib/InputField.svelte';
 	let filter = '';
@@ -32,7 +33,7 @@
 	{#if knownSiteswapsFiltered.length}
 		{#each knownSiteswapsFiltered as s}
 			<li class="pure-menu-item pure-u-1 pure-u-md-1-2 pure-u-lg-1-3">
-				<a class=pure-menu-link href="/siteswap/{s[0]}?jugglers=2">
+				<a class=pure-menu-link href="{base}/siteswap/{s[0]}?jugglers=2">
 					<span class=siteswap>{s[0]}</span>
 					<span class=name>{s[1]}</span>
 				</a>

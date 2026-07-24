@@ -1,7 +1,22 @@
-# passist
+# passist — polyrhythm fork
 passing siteswap assistant
 
-https://passist.org/
+Fork of [helbling/passist](https://github.com/helbling/passist) with support for
+animating **polyrhythmic passing patterns** (jugglers running at different tempos,
+e.g. 5 beats against 7 per cycle):
+
+- the Jif page can load a pattern from the URL fragment
+  (`/jif#jif=<uri-encoded json>` or `#jif=<base64url raw-deflate json>`),
+  so generators can deep-link directly into the animation
+- the animation judges dwell times and spin counts per juggler
+  (smallest gap between a juggler's own throws) instead of using one global
+  time-stretch factor, which makes mixed-tempo patterns look right
+- static SPA build deployable to GitHub Pages (`BASE_PATH=/passist VITE_BASE_URL=/passist VITE_SERVERTYPE=static npx vite build`)
+
+Patterns for it can be generated with the polyrhythmic passing generator
+(siteswap-style sequences per juggler with matching pass/receive interfaces).
+
+Upstream: https://passist.org/
 
 Work in progress..
 

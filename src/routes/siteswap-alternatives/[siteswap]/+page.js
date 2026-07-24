@@ -7,3 +7,5 @@ export async function load({ url, params }) {
 		handsInput: url.searchParams.get('hands') || ''
 	}
 }
+
+export const prerender = false;

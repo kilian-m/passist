@@ -749,6 +749,37 @@ updateScene(jif, options)
 	}, jif);
 	const timeStretchFactor = jif.timeStretchFactor ? jif.timeStretchFactor : 1;
 	this.beatsPerSecond = options.jugglingSpeed * timeStretchFactor;
+
+	/*
+	 * per-juggler beat interval: the smallest gap between a juggler's
+	 * consecutive throw times. For uniform patterns this equals
+	 * timeStretchFactor; for polyrhythmic patterns (jugglers running at
+	 * different tempos) it lets dwell times and spin counts be judged in
+	 * the thrower's own beats instead of a single global tempo.
+	 */
+	const period = jif.repetition && jif.repetition.period;
+	const jugglerBeatInterval = (jif.jugglers || []).map((_, ji) => {
+		const times = [...new Set(
+			(jif.throws || [])
+				.filter(t => t.duration > 0 && jif.limbs[t.from] && jif.limbs[t.from].juggler == ji)
+				.map(t => t.time)
+		)].sort((a, b) => a - b);
+		if (times.length < 2)
+			return timeStretchFactor;
+		let min = Infinity;
+		for (let i = 1; i < times.length; i++)
+			min = Math.min(min, times[i] - times[i - 1]);
+		if (period) {
+			const wrap = times[0] + period - times[times.length - 1];
+			if (wrap > 0)
+				min = Math.min(min, wrap);
+		}
+		return min > 0 && min < Infinity ? min : timeStretchFactor;
+	});
+	const throwTimeStretch = t => {
+		const limb = jif.limbs[t.from];
+		return (limb && jugglerBeatInterval[limb.juggler]) || timeStretchFactor;
+	};
 	const periodSeconds = this.periodSeconds = jif.repetition.period / this.beatsPerSecond;
 	const nProps = jif.props.length;
 
@@ -897,9 +928,10 @@ updateScene(jif, options)
 	// calculate prop movements
 	for (const t of jif.throws) {
 		if (t.duration > 0) {
-			const soloHeight = t.duration / timeStretchFactor;
+			const stretch = throwTimeStretch(t);
+			const soloHeight = t.duration / stretch;
 			if (!('dwell' in t))
-				t.dwell = (soloHeight > 2 ? 1 : (soloHeight < 1 ? 0 : 0.5)) * timeStretchFactor;
+				t.dwell = (soloHeight > 2 ? 1 : (soloHeight < 1 ? 0 : 0.5)) * stretch;
 			if (!('spins' in t))
 				t.spins = Math.max(0, Math.floor(soloHeight - 2));
 

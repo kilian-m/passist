@@ -1,7 +1,12 @@
-import node from '@sveltejs/adapter-node';
+import staticAdapter from '@sveltejs/adapter-static';
 
 export default {
 	kit: {
-		adapter: node()
+		adapter: staticAdapter({
+			fallback: '404.html',
+		}),
+		paths: {
+			base: process.env.BASE_PATH || '',
+		},
 	},
 };

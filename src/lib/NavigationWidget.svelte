@@ -1,10 +1,13 @@
 <script>
 	import { jifdev } from '$lib/passist.mjs';
 	import { page } from '$app/stores';
+	import { base } from '$app/paths';
 
 	let segment = '';
 	$: {
-		const pathname = $page?.url?.pathname || '';
+		let pathname = $page?.url?.pathname || '';
+		if (base && pathname.startsWith(base))
+			pathname = pathname.slice(base.length);
 		segment = '/' + pathname.split('/')[1];
 	}
 
@@ -34,7 +37,7 @@
 			<a
 				class=pure-menu-link
 				class:selected={segment === p.path || !segment && p.path === 'generator' }
-				href={p.path}
+				href={base + p.path}
 			>
 				{p.title}
 			</a>

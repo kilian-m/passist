@@ -1,4 +1,5 @@
 <script>
+	import { base } from '$app/paths';
 	import { useLocalStorage } from '$lib/passist.mjs';
 	import Icon from '$lib/Icon.svelte';
 	import JifEditor from '$lib/JifEditor.svelte';
@@ -80,7 +81,7 @@ $: {
 		<Icon type=load /> load
 	</button>
 	<a
-		href="/editor"
+		href="{base}/editor"
 		bind:this={savelink}
 		class="save pure-button"
 		download={(name || "pattern").trim().replaceAll(/\W+/g, "_") + ".jif"}

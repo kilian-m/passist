@@ -5,6 +5,7 @@
 	import InputField from '$lib/InputField.svelte';
 	import Icon from '$lib/Icon.svelte';
 	import Jif from '$lib/jif.mjs';
+	import { base } from '$app/paths';
 
 	/*
 	TODO import CausalDiagramWidget from '$lib/CausalDiagramWidget.svelte';
@@ -22,6 +23,22 @@
 
 	if (useLocalStorage)
 		jifString = localStorage.getItem('jif', null);
+
+	/*
+	 * load jif from url fragment: #jif=<payload>
+	 * payload is either uri-encoded json or base64url encoded raw deflate
+	 * (as produced for example by the polyrhythm passing generator)
+	 */
+	async function decodeJifFragment(payload) {
+		const raw = decodeURIComponent(payload);
+		if (raw.trimStart().startsWith('{'))
+			return raw;
+		const base64 = raw.replaceAll('-', '+').replaceAll('_', '/');
+		const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+		const stream = new Blob([bytes]).stream()
+			.pipeThrough(new DecompressionStream('deflate-raw'));
+		return await new Response(stream).text();
+	}
 
 	$: {
 		try {
@@ -47,6 +64,14 @@
 		}
 	}
 	onMount(async () => {
+		const match = window.location.hash.match(/^#jif=(.*)$/s);
+		if (match) {
+			try {
+				jifString = await decodeJifFragment(match[1]);
+			} catch (e) {
+				error = 'failed to load jif from url: ' + e;
+			}
+		}
 		console.log(jif);
 	});
 
@@ -115,7 +140,7 @@
 		<Icon type=load /> load
 	</button>
 	<a
-		href="/jif"
+		href="{base}/jif"
 		bind:this={savelink}
 		class="save pure-button"
 		download={(name || "pattern").trim().replaceAll(/\W+/g, "_") + ".jif"}

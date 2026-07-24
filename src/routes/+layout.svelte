@@ -1,6 +1,7 @@
 <script>
 	import NavigationWidget from '$lib/NavigationWidget.svelte';
 	import { servertype } from '$lib/passist.mjs';
+	import { base } from '$app/paths';
 </script>
 
 <style>
@@ -41,13 +42,13 @@
 
 <svelte:head>
 	<meta name="theme-color" content="#19a2ba">
-	<link rel='stylesheet' href='/pure-2.0.3-min.css'>
-	<link rel='stylesheet' href='/pure-2.0.3-grids-responsive-min.css'>
-	<link rel='stylesheet' href='/global2.css'>
-	<link rel='manifest' href='/manifest.json'>
-	<link rel="shortcut icon" href="/favicon.ico">
+	<link rel='stylesheet' href='{base}/pure-2.0.3-min.css'>
+	<link rel='stylesheet' href='{base}/pure-2.0.3-grids-responsive-min.css'>
+	<link rel='stylesheet' href='{base}/global2.css'>
+	<link rel='manifest' href='{base}/manifest.json'>
+	<link rel="shortcut icon" href="{base}/favicon.ico">
 	<meta name="apple-mobile-web-app-capable" content="yes">
-	<link rel="apple-touch-icon" href="/images/icon-192x192.png">
+	<link rel="apple-touch-icon" href="{base}/images/icon-192x192.png">
 	<meta http-equiv="Language" content="en">
 	<meta http-equiv="description" content="siteswap generator, find start configurations, causal diagram, patterns">
 </svelte:head>
@@ -55,14 +56,14 @@
 <header>
 	<div class="container">
 		<div >
-			<img class="cube" src="/images/cube.svg" alt="logo" />
+			<img class="cube" src="{base}/images/cube.svg" alt="logo" />
 		</div>
 		<div style="flex:1">
 			<h1>passist{servertype ? ' ' + servertype : ''}</h1>
 			<h2>passing siteswap assistant</h2>
 		</div>
 		<div>
-			<img class="meeseeks" src="/images/mr_meeseeks_proud2.png" alt="mr meeseeks" />
+			<img class="meeseeks" src="{base}/images/mr_meeseeks_proud2.png" alt="mr meeseeks" />
 		</div>
 		<NavigationWidget />
 	</div>

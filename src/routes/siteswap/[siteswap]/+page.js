@@ -16,3 +16,5 @@ export async function load({ url, params }) {
 		fullscreen: parseInt(url.searchParams.get('fullscreen')),
 	};
 }
+
+export const prerender = false;

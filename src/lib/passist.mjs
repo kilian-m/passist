@@ -1,4 +1,5 @@
 import { browser, dev } from '$app/environment';
+import { base } from '$app/paths';
 
 const defaults = {
 	siteswap: '86277',
@@ -24,7 +25,7 @@ function U(path, query)
 	const queryPart = Object.entries(query).map(
 		([key, val]) => `${key}=${encodeURIComponent(val)}`
 	).join('&');
-	return path + (queryPart ? '?' + queryPart : '');
+	return base + path + (queryPart ? '?' + queryPart : '');
 }
 
 function siteswapUrl(p)
@@ -123,9 +124,10 @@ function defaultLimbs(n)
 
 const servertype = import.meta.env.VITE_SERVERTYPE || (dev ? 'dev' : '');
 
-const jifdev = servertype == 'dev' || servertype == 'alpha';
+const jifdev = servertype == 'dev' || servertype == 'alpha' || servertype == 'static';
 
-const baseUrl = dev ? '' :
+const baseUrl = import.meta.env.VITE_BASE_URL !== undefined ? import.meta.env.VITE_BASE_URL :
+                dev ? '' :
                 'https://'
                  + (import.meta.env.VITE_SERVERTYPE ? import.meta.env.VITE_SERVERTYPE + '.' : '')
                  + 'passist.org';
