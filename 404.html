@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang='en'>
+<head>
+	<meta charset='utf-8'>
+	<meta name='viewport' content='width=device-width,initial-scale=1.0'>
+
+	<!-- This contains the contents of the <sveltekit:head> component, if
+	     the current page has one -->
+	
+		<link rel="modulepreload" href="/passist/_app/immutable/entry/start.BNGTuDF-.js">
+		<link rel="modulepreload" href="/passist/_app/immutable/chunks/entry.CKl8WGAX.js">
+		<link rel="modulepreload" href="/passist/_app/immutable/chunks/scheduler.k8T4BP3h.js">
+		<link rel="modulepreload" href="/passist/_app/immutable/chunks/paths.LxurCWOE.js">
+		<link rel="modulepreload" href="/passist/_app/immutable/entry/app.DLldAUEP.js">
+		<link rel="modulepreload" href="/passist/_app/immutable/chunks/preload-helper.C1FmrZbK.js">
+		<link rel="modulepreload" href="/passist/_app/immutable/chunks/index.XnEa3LoN.js">
+</head>
+<body>
+	<div>
+			<script>
+				{
+					__sveltekit_9y5boy = {
+						base: "/passist",
+						assets: "/passist"
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("/passist/_app/immutable/entry/start.BNGTuDF-.js"),
+						import("/passist/_app/immutable/entry/app.DLldAUEP.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element);
+					});
+
+					if ('serviceWorker' in navigator) {
+						addEventListener('load', function () {
+							navigator.serviceWorker.register('/passist/service-worker.js');
+						});
+					}
+				}
+			</script>
+		</div>
+</body>
+</html>
