@@ -142,7 +142,7 @@
 		white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 	.seqstr :global(sub.orient) { font-size:0.6em }
 	.seqstr :global(.frac) { display:inline-flex; flex-direction:column; align-items:center;
-		font-size:0.5em; line-height:1.2; vertical-align:0.18em; margin:0 0.1em }
+		font-size:0.48em; line-height:1.1; vertical-align:middle; margin:0 0.1em }
 	.seqstr :global(.frac .fn) { border-bottom:1px solid currentColor; padding:0 0.2em }
 	.seqstr :global(.recv) { border-bottom:2px dotted currentColor }
 	.more { width:100%; border:none; background:#f0f0f0; padding:0.4em; cursor:pointer }
