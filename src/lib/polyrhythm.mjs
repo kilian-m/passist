@@ -35,9 +35,9 @@ const sub = n => String(n).split('').map(d => SUBD[+d]).join('');
 export const defaultConfig = {
 	nA: 5,
 	nB: 7,
-	selfMax: 5,       // selfs are integers < 6, i.e. 0..5 (0 = empty beat)
+	selfMax: 4,       // inclusive; selfs are integers 0..selfMax (0 = empty beat)
 	passMin: 2.5,     // inclusive
-	passMax: 6,       // exclusive
+	passMax: 4.5,     // inclusive
 	allowZero: false,
 	excludeHolds: false, // drop self 2s (a 2 stays in the same hand = hold)
 };
@@ -55,8 +55,8 @@ function makeOptions(n, m, cfg) {
 			list.push({ kind: 'self', v, land: (i + v) % n, num: v * m });
 		}
 		const jLo = Math.ceil(m * (i + cfg.passMin) / n - 1e-9);
-		const jHi = Math.ceil(m * (i + cfg.passMax) / n - 1e-9); // exclusive
-		for (let jAbs = jLo; jAbs < jHi; jAbs++) {
+		const jHi = Math.floor(m * (i + cfg.passMax) / n + 1e-9); // inclusive
+		for (let jAbs = jLo; jAbs <= jHi; jAbs++) {
 			list.push({
 				kind: 'pass', num: n * jAbs - i * m, den: m, jAbs, jMod: jAbs % m,
 				straight: (i % 2) !== (jAbs % 2),
@@ -155,12 +155,14 @@ export function throwLabel(o, html) {
 	if (o.kind === 'self') return String(o.v);
 	const whole = Math.floor(o.num / o.den), rem = o.num % o.den;
 	let s = whole || !rem ? String(whole) : '';
-	if (rem) {
-		const g = gcd(rem, o.den);
-		s += sup(rem / g) + '⁄' + sub(o.den / g);
-	}
 	const orient = o.altOrient ? 'X↔II' : (o.straight ? 'II' : 'X');
-	return html ? s + '<sub class="orient">' + orient + '</sub>' : s + orient;
+	if (!rem)
+		return html ? s + '<sub class="orient">' + orient + '</sub>' : s + orient;
+	const g = gcd(rem, o.den);
+	if (html)
+		return s + '<span class="frac"><span class="fn">' + (rem / g) + '</span><span>' + (o.den / g) +
+			'</span></span><sub class="orient">' + orient + '</sub>';
+	return s + sup(rem / g) + '⁄' + sub(o.den / g) + orient;
 }
 
 export function seqString(seq, html, markRecv) {

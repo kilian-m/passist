@@ -11,7 +11,7 @@
 		maskToBeats, popcount, lcm, timelineSvg,
 	} from '$lib/polyrhythm.mjs';
 
-	let nA = 5, nB = 7, selfMax = 5, passMin = 2.5, passMax = 6;
+	let nA = 5, nB = 7, selfMax = 4, passMin = 2.5, passMax = 4.5;
 	let allowZero = false, excludeHolds = false;
 	let res = null, genError = '', genInfo = '';
 	let itf = null;         // selected interface object
@@ -28,7 +28,7 @@
 			res = generate({
 				nA: clamp(nA, 2, 9), nB: clamp(nB, 2, 9),
 				selfMax: clamp(selfMax, 1, 9),
-				passMin: +passMin || 2.5, passMax: +passMax || 6,
+				passMin: +passMin || 2.5, passMax: +passMax || 4.5,
 				allowZero, excludeHolds,
 			});
 			genInfo = res.seqsA.length.toLocaleString() + ' A-sequences, ' +
@@ -141,6 +141,9 @@
 	.seqstr { font-family:ui-monospace, Menlo, Consolas, monospace; font-variant-numeric:tabular-nums;
 		white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 	.seqstr :global(sub.orient) { font-size:0.6em }
+	.seqstr :global(.frac) { display:inline-flex; flex-direction:column; align-items:center;
+		font-size:0.5em; line-height:1.2; vertical-align:0.18em; margin:0 0.1em }
+	.seqstr :global(.frac .fn) { border-bottom:1px solid currentColor; padding:0 0.2em }
 	.seqstr :global(.recv) { border-bottom:2px dotted currentColor }
 	.more { width:100%; border:none; background:#f0f0f0; padding:0.4em; cursor:pointer }
 	.empty { padding:1.5em; text-align:center; color:#888 }
@@ -180,9 +183,9 @@
 <div class=controls>
 	<InputField bind:value={nA} type=number id=nA label="beats A" min=2 max=9 defaultValue=5 />
 	<InputField bind:value={nB} type=number id=nB label="beats B" min=2 max=9 defaultValue=7 />
-	<InputField bind:value={selfMax} type=number id=selfmax label="max self" min=1 max=9 defaultValue=5 />
+	<InputField bind:value={selfMax} type=number id=selfmax label="max self" min=1 max=9 defaultValue=4 />
 	<InputField bind:value={passMin} type=number id=passmin label="min pass" min=1 max=9 step=0.5 defaultValue=2.5 />
-	<InputField bind:value={passMax} type=number id=passmax label="pass &lt;" min=2 max=10 step=0.5 defaultValue=6 />
+	<InputField bind:value={passMax} type=number id=passmax label="max pass" min=2 max=10 step=0.5 defaultValue=4.5 />
 </div>
 <div class=checks>
 	<label><input type=checkbox bind:checked={excludeHolds}> exclude holds (no 2s)</label>
