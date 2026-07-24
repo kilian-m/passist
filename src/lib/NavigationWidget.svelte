@@ -15,6 +15,7 @@
 		{ path:'/siteswap-generator', title:'Generator' },
 		{ path:'/siteswap',  title:'Siteswap' },
 		{ path:'/patterns',  title:'Patterns' },
+		{ path:'/polyrhythm', title:'Polyrhythm' },
 		jifdev ? { path:'/jif',       title:'Jif' } : null,
 		{ path:'/about',     title:'About' },
 	].filter(Boolean);
