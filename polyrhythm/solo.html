@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang='en'>
+<head>
+	<meta charset='utf-8'>
+	<meta name='viewport' content='width=device-width,initial-scale=1.0'>
+
+	<!-- This contains the contents of the <sveltekit:head> component, if
+	     the current page has one -->
+	
+		<link rel="modulepreload" href="../_app/immutable/entry/start.BT4nSbfl.js">
+		<link rel="modulepreload" href="../_app/immutable/chunks/entry.Dy5iLSsy.js">
+		<link rel="modulepreload" href="../_app/immutable/chunks/scheduler.CPxof9x4.js">
+		<link rel="modulepreload" href="../_app/immutable/chunks/paths.BK7Sy17A.js">
+		<link rel="modulepreload" href="../_app/immutable/entry/app.DWO4eEbo.js">
+		<link rel="modulepreload" href="../_app/immutable/chunks/preload-helper.C1FmrZbK.js">
+		<link rel="modulepreload" href="../_app/immutable/chunks/index.bG2QcpIo.js">
+</head>
+<body>
+	<div>
+			<script>
+				{
+					__sveltekit_1ndvkj = {
+						base: new URL("..", location).pathname.slice(0, -1),
+						assets: "/passist"
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("../_app/immutable/entry/start.BT4nSbfl.js"),
+						import("../_app/immutable/entry/app.DWO4eEbo.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element);
+					});
+
+					if ('serviceWorker' in navigator) {
+						addEventListener('load', function () {
+							navigator.serviceWorker.register('../service-worker.js');
+						});
+					}
+				}
+			</script>
+		</div>
+</body>
+</html>
