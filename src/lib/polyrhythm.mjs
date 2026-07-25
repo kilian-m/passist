@@ -52,7 +52,7 @@ export const soloDefaultConfig = {
 	nR: 3,            // right hand beats per cycle
 	nL: 2,            // left hand beats per cycle
 	minHeight: 1,     // inclusive, in beats of the faster hand
-	maxHeight: 4,     // inclusive, in beats of the faster hand
+	maxHeight: 5,     // inclusive, in beats of the faster hand
 	includeHolds: false, // same-hand 1 = the ball can just stay in the hand
 	allowZero: false,
 };
@@ -358,7 +358,7 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
 			{ juggler: 0, type: 'right hand' }, { juggler: 0, type: 'left hand' },
 			{ juggler: 1, type: 'right hand' }, { juggler: 1, type: 'left hand' },
 		],
-		props: Array.from({ length: clubCount(seqA, seqB, cfg) }, () => ({ type: propType })),
+		props: makeProps(clubCount(seqA, seqB, cfg), propType),
 		timeStretchFactor: 2 * L / (nA + nB),
 		repetition: { period: periodCycles * L },
 		throws,
@@ -372,6 +372,16 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
  * are set explicitly per throw, judged in the throwing hand's own beats
  * (one own beat corresponds to two beats of a normal alternating siteswap).
  */
+// high-visibility colors for balls (clubs keep the jif default palette)
+export const neonBallColors = ['#39ff14', '#ff2079', '#00e5ff', '#ffea00', '#ff9100', '#b026ff', '#ff3131', '#04ff95'];
+
+function makeProps(count, propType) {
+	return Array.from({ length: count }, (_, i) =>
+		propType === 'ball'
+			? { type: 'ball', color: neonBallColors[i % neonBallColors.length] }
+			: { type: propType });
+}
+
 export function buildJifSolo(seqR, seqL, cfg, propType) {
 	propType = propType || 'ball';
 	const nR = cfg.nA, nL = cfg.nB;
@@ -417,8 +427,11 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 			{ juggler: 0, type: 'right hand' },
 			{ juggler: 0, type: 'left hand' },
 		],
-		props: Array.from({ length: clubCount(seqR, seqL, cfg) }, () => ({ type: propType })),
-		timeStretchFactor: L / (nR + nL),
+		props: makeProps(clubCount(seqR, seqL, cfg), propType),
+		// 1.5x faster than the per-juggler throw-rate normalisation: polyrhythm
+		// values are large in siteswap terms, so a quicker tempo keeps the
+		// physically simulated arcs at a realistic height
+		timeStretchFactor: 1.5 * L / (nR + nL),
 		repetition: { period: L },
 		throws,
 	};

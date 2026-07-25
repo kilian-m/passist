@@ -10,7 +10,7 @@
 		soloHandSeq, soloGlobalSeq, timelineSvg,
 	} from '$lib/polyrhythm.mjs';
 
-	let nR = 3, nL = 2, minHeight = 1, maxHeight = 4;
+	let nR = 3, nL = 2, minHeight = 1, maxHeight = 5;
 	let includeHolds = false, allowZero = false;
 	let propType = 'ball';
 	let ballFilter = -1;
@@ -158,7 +158,7 @@
 	<InputField bind:value={nR} type=number id=nr label="beats right" min=1 max=9 defaultValue=3 />
 	<InputField bind:value={nL} type=number id=nl label="beats left" min=1 max=9 defaultValue=2 />
 	<InputField bind:value={minHeight} type=number id=minheight label="min height" min=0.5 max=9 step=0.5 defaultValue=1 />
-	<InputField bind:value={maxHeight} type=number id=maxheight label="max height" min=1 max=12 step=0.5 defaultValue=4 />
+	<InputField bind:value={maxHeight} type=number id=maxheight label="max height" min=1 max=12 step=0.5 defaultValue=5 />
 </div>
 <div class=checks>
 	<label><input type=checkbox bind:checked={includeHolds}> include holds (same-hand 1s)</label>

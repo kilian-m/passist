@@ -833,8 +833,12 @@ updateScene(jif, options)
 
 		const mesh = type == 'ball' ?
 			new THREE.Mesh(
-				new THREE.SphereGeometry( 0.04, 10, 10 ),
-				new THREE.MeshToonMaterial({color: color} )
+				new THREE.SphereGeometry( 0.065, 16, 12 ),
+				new THREE.MeshToonMaterial({
+					color: color,
+					emissive: new THREE.Color(color),
+					emissiveIntensity: 0.45,
+				})
 			)
 			: new THREE.Mesh(
 				this.clubGeometry,
