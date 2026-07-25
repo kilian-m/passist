@@ -13,6 +13,7 @@
 
 	let nA = 5, nB = 7, selfMax = 4, passMin = 2.5, passMax = 4.5;
 	let allowZero = false, excludeHolds = true;
+	let propType = 'club';
 	let res = null, genError = '', genInfo = '';
 	let itf = null;         // selected interface object
 	let selA = null, selB = null; // selected sequence indices (into res.seqsA/B)
@@ -80,13 +81,13 @@
 
 	$: seqA = (res && selA != null) ? res.seqsA[selA] : null;
 	$: seqB = (res && selB != null) ? res.seqsB[selB] : null;
-	$: pattern = (seqA && seqB) ? buildPattern(seqA, seqB) : null;
-	function buildPattern(sa, sb) {
-		const jifRaw = buildJif(sa, sb, res.cfg);
+	$: pattern = (seqA && seqB) ? buildPattern(seqA, seqB, propType) : null;
+	function buildPattern(sa, sb, pt) {
+		const jifRaw = buildJif(sa, sb, res.cfg, null, pt);
 		const problems = validatePair(sa, sb, res.cfg);
 		let completed = null, warnings = [];
 		try {
-			const c = Jif.complete(jifRaw, { expand: true });
+			const c = Jif.complete(jifRaw, { expand: true, propType: pt });
 			completed = c.jif; warnings = c.warnings;
 		} catch (e) {
 			warnings = [String(e)];
@@ -119,6 +120,10 @@
 </script>
 
 <style>
+	.tabs { display:flex; gap:0.3em; margin-bottom:1em }
+	.tabs a { padding:0.3em 1.1em; border:1px solid #ddd; border-radius:4px 4px 0 0; border-bottom:none;
+		text-decoration:none; color:#555; background:#f0f0f0 }
+	.tabs a.active { background:#fff; color:#16697a; font-weight:700; border-color:#bbb }
 	.controls { display:flex; flex-wrap:wrap; align-items:flex-end; gap:0 0.5em }
 	.checks { display:flex; gap:1.5em; margin:0 1em 1em 0; align-items:center }
 	.geninfo { color:#666; font-size:0.85em; margin-bottom:1em }
@@ -168,9 +173,16 @@
 	.warnings { color:orange }
 	.animwrap { max-width:56em }
 	.animbox { height:26em }
+	label.pure-button { margin:0 }
 </style>
 
 <h1>Polyrhythmic passing patterns</h1>
+
+<div class=tabs>
+	<a href="{base}/polyrhythm" class=active aria-current=page>Passing</a>
+	<a href="{base}/polyrhythm/solo">Solo</a>
+</div>
+
 <p>
 	Juggler <b style="color:#16697a">A</b> and juggler <b style="color:#c05621">B</b> share a common
 	cycle but throw at different tempos ({nA} against {nB} beats per cycle). Throw values are counted
@@ -272,7 +284,7 @@
 		<span class="who b">B</span><span class=seqstr>{@html seqString(seqB, true, true)}</span>
 	</div>
 	<div class=badges>
-		<span class=badge>{pattern.clubs} clubs</span>
+		<span class=badge>{pattern.clubs} {propType == 'ball' ? 'balls' : 'clubs'}</span>
 		<span class=badge>{pattern.nPasses} pass{pattern.nPasses == 1 ? '' : 'es'} each per cycle</span>
 		<span class=badge>period {pattern.periodTicks} ticks = {pattern.cycles} cycles</span>
 		{#if pattern.problems.length}
@@ -287,14 +299,24 @@
 		<div class=animbox>
 			<AnimationWidget jif={pattern.completed} animationSpeed={parseFloat(animationSpeed)} />
 		</div>
-		<InputField
-			bind:value={animationSpeed}
-			type=range
-			id=animationspeed
-			label='Animation speed'
-			step=0.1 min=0.1 max=2
-			defaultValue={defaults.animationSpeed}
-		/>
+		<div class=controls>
+			<InputField id=proptype type=custom label="Prop type">
+				<label class="pure-button" class:pure-button-active={propType == 'club'}>
+					<input type="radio" bind:group={propType} value="club" autocomplete="off"> Clubs
+				</label>
+				<label class="pure-button" class:pure-button-active={propType == 'ball'}>
+					<input type="radio" bind:group={propType} value="ball" autocomplete="off"> Balls
+				</label>
+			</InputField>
+			<InputField
+				bind:value={animationSpeed}
+				type=range
+				id=animationspeed
+				label='Animation speed'
+				step=0.1 min=0.1 max=2
+				defaultValue={defaults.animationSpeed}
+			/>
+		</div>
 	</div>
 	{/if}
 	{#if pattern.warnings.length}

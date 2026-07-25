@@ -22,6 +22,12 @@
  * SA = beats where A receives a pass (= landing beats of B's passes) and
  * SB = beats where B receives. Any A-sequence and B-sequence with matching
  * interfaces combine into a valid pattern.
+ *
+ * Solo polyrhythm reuses the same machinery with the two "sides" being the
+ * right and left hand of a single juggler (right = A, left = B). Hands do
+ * not alternate: every beat of a side belongs to the same hand, so a
+ * same-hand 1 is a hold and "passes" are crossing throws (X). Heights are
+ * bounded in global units: beats of the faster hand.
  */
 
 export function gcd(a, b) { return b ? gcd(b, a % b) : a; }
@@ -42,7 +48,17 @@ export const defaultConfig = {
 	excludeHolds: true, // drop self 2s (a 2 stays in the same hand = hold)
 };
 
+export const soloDefaultConfig = {
+	nR: 3,            // right hand beats per cycle
+	nL: 2,            // left hand beats per cycle
+	minHeight: 1,     // inclusive, in beats of the faster hand
+	maxHeight: 4,     // inclusive, in beats of the faster hand
+	includeHolds: false, // same-hand 1 = the ball can just stay in the hand
+	allowZero: false,
+};
+
 export const MAX_SEQS = 600000;
+export const MAX_PATTERNS = 200000;
 
 function makeOptions(n, m, cfg) {
 	const beats = [];
@@ -68,8 +84,36 @@ function makeOptions(n, m, cfg) {
 	return beats;
 }
 
-function enumerate(n, m, cfg) {
-	const opts = makeOptions(n, m, cfg);
+// Same beat options for the solo case: hand with n beats per cycle against
+// the other hand with m; nFast scales global heights. Selfs stay in the same
+// hand (a 1 is a hold), passes cross to the other hand.
+function makeSoloOptions(n, m, nFast, cfg) {
+	const beats = [];
+	const vLo = Math.max(1, Math.ceil(cfg.minHeight * n / nFast - 1e-9));
+	const vHi = Math.floor(cfg.maxHeight * n / nFast + 1e-9);
+	for (let i = 0; i < n; i++) {
+		const list = [];
+		if (cfg.allowZero)
+			list.push({ kind: 'self', v: 0, land: i, num: 0 });
+		for (let v = vLo; v <= vHi; v++) {
+			if (!cfg.includeHolds && v === 1)
+				continue;
+			list.push({ kind: 'self', v, land: (i + v) % n, num: v * m });
+		}
+		const jLo = Math.ceil(m * i / n + m * cfg.minHeight / nFast - 1e-9);
+		const jHi = Math.floor(m * i / n + m * cfg.maxHeight / nFast + 1e-9);
+		for (let jAbs = jLo; jAbs <= jHi; jAbs++) {
+			const num = n * jAbs - i * m;
+			if (num <= 0)
+				continue;
+			list.push({ kind: 'pass', num, den: m, jAbs, jMod: jAbs % m });
+		}
+		beats.push(list);
+	}
+	return beats;
+}
+
+function enumerate(n, opts) {
 	const seqs = [];
 	const choice = new Array(n);
 	const full = (1 << n) - 1;
@@ -114,8 +158,8 @@ function enumerate(n, m, cfg) {
 
 export function generate(cfg) {
 	cfg = Object.assign({}, defaultConfig, cfg);
-	const seqsA = enumerate(cfg.nA, cfg.nB, cfg);
-	const seqsB = enumerate(cfg.nB, cfg.nA, cfg);
+	const seqsA = enumerate(cfg.nA, makeOptions(cfg.nA, cfg.nB, cfg));
+	const seqsB = enumerate(cfg.nB, makeOptions(cfg.nB, cfg.nA, cfg));
 	const mapA = new Map(), mapB = new Map();
 	seqsA.forEach((s, i) => {
 		const k = s.recv + ':' + s.out;
@@ -145,24 +189,117 @@ export function generate(cfg) {
 	return { cfg, seqsA, seqsB, interfaces };
 }
 
+/*
+ * Solo generator: right hand = side A, left hand = side B. Unlike the
+ * passing generator this returns the complete flat list of valid patterns
+ * (all sequence pairs with matching interfaces), including ones without
+ * crossing throws.
+ */
+export function generateSolo(cfg) {
+	cfg = Object.assign({}, soloDefaultConfig, cfg);
+	cfg.nA = cfg.nR;
+	cfg.nB = cfg.nL;
+	cfg.nFast = Math.max(cfg.nR, cfg.nL);
+	const seqsA = enumerate(cfg.nA, makeSoloOptions(cfg.nA, cfg.nB, cfg.nFast, cfg));
+	const seqsB = enumerate(cfg.nB, makeSoloOptions(cfg.nB, cfg.nA, cfg.nFast, cfg));
+	const mapB = new Map();
+	seqsB.forEach((s, i) => {
+		const k = s.recv + ':' + s.out;
+		if (!mapB.has(k)) mapB.set(k, []);
+		mapB.get(k).push(i);
+	});
+	const den = cfg.nA * cfg.nB;
+	const patterns = [];
+	seqsA.forEach((sa, ia) => {
+		const match = mapB.get(sa.out + ':' + sa.recv);
+		if (!match) return;
+		for (const ib of match) {
+			if (patterns.length >= MAX_PATTERNS)
+				throw new Error('more than ' + MAX_PATTERNS.toLocaleString() +
+					' patterns — reduce beats per cycle or lower the max height');
+			patterns.push({
+				ia, ib,
+				balls: (sa.num + seqsB[ib].num) / den,
+				nCross: popcount(sa.out) + popcount(seqsB[ib].out),
+				balance: Math.abs(sa.num - seqsB[ib].num),
+			});
+		}
+	});
+	patterns.sort((x, y) => x.balls - y.balls || x.nCross - y.nCross || x.balance - y.balance);
+	return { cfg, seqsA, seqsB, patterns };
+}
+
 export function maskToBeats(mask, n) {
 	const r = [];
 	for (let b = 0; b < n; b++) if (mask & (1 << b)) r.push(b);
 	return r;
 }
 
+// number as (mixed) fraction with an orientation marker attached
+function fracLabel(num, den, orient, html) {
+	const whole = Math.floor(num / den), rem = num % den;
+	let s = whole || !rem ? String(whole) : '';
+	if (rem) {
+		const g = gcd(rem, den);
+		s += html
+			? '<span class="frac"><span class="fn">' + (rem / g) + '</span><span>' + (den / g) + '</span></span>'
+			: sup(rem / g) + '⁄' + sub(den / g);
+	}
+	if (orient)
+		s += html ? '<sub class="orient">' + orient + '</sub>' : orient;
+	return s;
+}
+
 export function throwLabel(o, html) {
 	if (o.kind === 'self') return String(o.v);
-	const whole = Math.floor(o.num / o.den), rem = o.num % o.den;
-	let s = whole || !rem ? String(whole) : '';
-	const orient = o.altOrient ? 'X↔II' : (o.straight ? 'II' : 'X');
-	if (!rem)
-		return html ? s + '<sub class="orient">' + orient + '</sub>' : s + orient;
-	const g = gcd(rem, o.den);
-	if (html)
-		return s + '<span class="frac"><span class="fn">' + (rem / g) + '</span><span>' + (o.den / g) +
-			'</span></span><sub class="orient">' + orient + '</sub>';
-	return s + sup(rem / g) + '⁄' + sub(o.den / g) + orient;
+	return fracLabel(o.num, o.den, o.altOrient ? 'X↔II' : (o.straight ? 'II' : 'X'), html);
+}
+
+// solo labels: in hand-local numbering selfs are plain integers, crossing
+// throws are fractions in the thrower's own beats marked X
+export function soloThrowLabel(o, html) {
+	if (o.kind === 'self') return String(o.v);
+	return fracLabel(o.num, o.den, 'X', html);
+}
+
+// global numbering: value scaled to beats of the faster hand,
+// II = stays in the same hand, X = crosses to the other hand.
+// o.num is the own-beat value times m, so global = num * nFast / (n * m).
+export function soloGlobalLabel(o, n, m, nFast, html) {
+	if (o.kind === 'self' && o.v === 0) return '0';
+	return fracLabel(o.num * nFast, n * m, o.kind === 'pass' ? 'X' : 'II', html);
+}
+
+export function soloHandSeq(seq, html) {
+	return seq.throws.map(o => soloThrowLabel(o, html)).join(' ');
+}
+
+// both hands merged in time order, global numbering; simultaneous throws
+// are grouped as (right,left)
+export function soloGlobalSeq(sa, sb, cfg, html) {
+	const L = lcm(cfg.nA, cfg.nB), nFast = cfg.nFast;
+	const events = [];
+	const add = (seq, n, m, hand) => {
+		const tick = L / n;
+		seq.throws.forEach((o, i) => {
+			let label = soloGlobalLabel(o, n, m, nFast, html);
+			if (html)
+				label = '<span class="h' + hand + '">' + label + '</span>';
+			events.push({ t: i * tick, hand, label });
+		});
+	};
+	add(sa, cfg.nA, cfg.nB, 'R');
+	add(sb, cfg.nB, cfg.nA, 'L');
+	events.sort((a, b) => a.t - b.t || (a.hand === 'R' ? -1 : 1));
+	const parts = [];
+	for (let i = 0; i < events.length; ) {
+		let j = i;
+		while (j + 1 < events.length && events[j + 1].t === events[i].t) j++;
+		const labels = events.slice(i, j + 1).map(e => e.label);
+		parts.push(labels.length > 1 ? '(' + labels.join(',') + ')' : labels[0]);
+		i = j + 1;
+	}
+	return parts.join(' ');
 }
 
 export function seqString(seq, html, markRecv) {
@@ -175,8 +312,9 @@ export function seqString(seq, html, markRecv) {
 
 export function clubCount(sa, sb, cfg) { return (sa.num + sb.num) / (cfg.nA * cfg.nB); }
 
-export function buildJif(seqA, seqB, cfg, names) {
+export function buildJif(seqA, seqB, cfg, names, propType) {
 	names = names || ['A', 'B'];
+	propType = propType || 'club';
 	const nA = cfg.nA, nB = cfg.nB;
 	const L = lcm(nA, nB);
 	const periodCycles = (nA % 2 === 0 && nB % 2 === 0) ? 1 : 2;
@@ -220,9 +358,68 @@ export function buildJif(seqA, seqB, cfg, names) {
 			{ juggler: 0, type: 'right hand' }, { juggler: 0, type: 'left hand' },
 			{ juggler: 1, type: 'right hand' }, { juggler: 1, type: 'left hand' },
 		],
-		props: Array.from({ length: clubCount(seqA, seqB, cfg) }, () => ({ type: 'club' })),
+		props: Array.from({ length: clubCount(seqA, seqB, cfg) }, () => ({ type: propType })),
 		timeStretchFactor: 2 * L / (nA + nB),
 		repetition: { period: periodCycles * L },
+		throws,
+	};
+}
+
+/*
+ * Jif for a solo polyrhythm pattern: one juggler, right hand on the nR grid,
+ * left hand on the nL grid. The hands run at different tempos, which the
+ * animation's per-juggler beat heuristic cannot express, so dwell and spins
+ * are set explicitly per throw, judged in the throwing hand's own beats
+ * (one own beat corresponds to two beats of a normal alternating siteswap).
+ */
+export function buildJifSolo(seqR, seqL, cfg, propType) {
+	propType = propType || 'ball';
+	const nR = cfg.nA, nL = cfg.nB;
+	const L = lcm(nR, nL);
+	const throws = [];
+	const add = (seq, n, m, limb, otherLimb) => {
+		const tick = L / n, otherTick = L / m;
+		const stretch = tick / 2;
+		seq.throws.forEach((o, i) => {
+			let duration, to;
+			if (o.kind === 'self') {
+				if (o.v === 0) return;
+				duration = o.v * tick;
+				to = limb;
+			} else {
+				duration = o.jAbs * otherTick - i * tick;
+				to = otherLimb;
+			}
+			const soloHeight = duration / stretch;
+			throws.push({
+				time: i * tick, duration, from: limb, to, label: soloThrowLabel(o),
+				dwell: (soloHeight > 2 ? 1 : (soloHeight < 1 ? 0 : 0.5)) * stretch,
+				spins: Math.max(0, Math.floor(soloHeight - 2)),
+			});
+		});
+	};
+	add(seqR, nR, nL, 0, 1);
+	add(seqL, nL, nR, 1, 0);
+	throws.sort((a, b) => a.time - b.time || a.from - b.from);
+	const strR = soloHandSeq(seqR), strL = soloHandSeq(seqL);
+	return {
+		jif: '0.01',
+		meta: {
+			name: 'solo polyrhythm ' + nR + ':' + nL + '  R: ' + strR + '  L: ' + strL,
+			description: 'Solo polyrhythmic pattern, right hand ' + nR + ' beats per cycle against ' +
+				nL + ' for the left hand. Throw values are in the throwing hand\'s own beats. ' +
+				'Time unit: 1/' + L + ' cycle.',
+			generator: 'polyrhythm-solo-generator',
+		},
+		highLevelDescription: { type: 'polyrhythmicSiteswap', description: 'R: ' + strR + ' | L: ' + strL },
+		jugglers: [{ name: 'Solo', position: [0, 0, 0], lookAt: [0, 0, 1] }],
+		limbs: [
+			{ juggler: 0, type: 'right hand' },
+			{ juggler: 0, type: 'left hand' },
+		],
+		props: Array.from({ length: clubCount(seqR, seqL, cfg) }, () => ({ type: propType })),
+		timeStretchFactor: L / (nR + nL),
+		repetition: { period: L },
 		throws,
 	};
 }
@@ -266,10 +463,13 @@ export function validatePair(seqA, seqB, cfg) {
 	return problems;
 }
 
-// Timeline of both jugglers' throws over two cycles as an svg string.
-export function timelineSvg(sa, sb, cfg, colors) {
+// Timeline of both jugglers' (or hands') throws over two cycles as an svg
+// string. opts.solo: rows are the two hands of one juggler (fixed hand per
+// row, no per-beat hand letters); opts.labels: row labels.
+export function timelineSvg(sa, sb, cfg, colors, opts) {
 	const { cA, cB, cLine, cSoft } = Object.assign(
 		{ cA: '#16697a', cB: '#c05621', cLine: '#ccc', cSoft: '#888' }, colors);
+	const { solo, labels } = Object.assign({ solo: false, labels: ['A', 'B'] }, opts);
 	const nA = cfg.nA, nB = cfg.nB;
 	const cycles = 2, cw = 380, x0 = 34, W = x0 + cycles * cw + 40, H = 240;
 	const yA = 62, yB = 178;
@@ -282,8 +482,8 @@ export function timelineSvg(sa, sb, cfg, colors) {
 	}
 	s += '<line x1="' + x0 + '" y1="' + yA + '" x2="' + (W - 30) + '" y2="' + yA + '" stroke="' + cLine + '"/>';
 	s += '<line x1="' + x0 + '" y1="' + yB + '" x2="' + (W - 30) + '" y2="' + yB + '" stroke="' + cLine + '"/>';
-	s += '<text x="8" y="' + (yA + 4) + '" font-size="13" font-weight="700" fill="' + cA + '">A</text>';
-	s += '<text x="8" y="' + (yB + 4) + '" font-size="13" font-weight="700" fill="' + cB + '">B</text>';
+	s += '<text x="8" y="' + (yA + 4) + '" font-size="13" font-weight="700" fill="' + cA + '">' + labels[0] + '</text>';
+	s += '<text x="8" y="' + (yB + 4) + '" font-size="13" font-weight="700" fill="' + cB + '">' + labels[1] + '</text>';
 	const X = t => x0 + t * cw;
 	const arcs = [], marks = [];
 	const draw = (seq, n, m, y, yOther, color, self) => {
@@ -295,8 +495,9 @@ export function timelineSvg(sa, sb, cfg, colors) {
 					const hand = g % 2 ? 'L' : 'R';
 					marks.push('<circle cx="' + X(t1) + '" cy="' + y + '" r="' + ((seq.recv >> i) & 1 ? 5.5 : 3.5) +
 						'" fill="' + ((seq.recv >> i) & 1 ? 'none' : color) + '" stroke="' + color + '" stroke-width="1.6"/>' +
+						(solo ? '' :
 						'<text x="' + X(t1) + '" y="' + (y + (self === 'A' ? -34 : 40)) + '" font-size="9.5" fill="' + cSoft +
-						'" text-anchor="middle">' + hand + '</text>');
+						'" text-anchor="middle">' + hand + '</text>'));
 				}
 				if (o.kind === 'self') {
 					if (o.v === 0) return;
@@ -319,7 +520,8 @@ export function timelineSvg(sa, sb, cfg, colors) {
 	draw(sa, nA, nB, yA, yB, cA, 'A');
 	draw(sb, nB, nA, yB, yA, cB, 'B');
 	s += arcs.join('') + marks.join('');
-	s += '<text x="' + x0 + '" y="' + (H - 8) + '" font-size="11" fill="' + cSoft +
-		'">passes: solid = straight II, dashed = crossing X · open circle = receives</text>';
+	s += '<text x="' + x0 + '" y="' + (H - 8) + '" font-size="11" fill="' + cSoft + '">' +
+		(solo ? 'dashed arcs = crossing to the other hand (X) · open circle = catches from the other hand'
+			: 'passes: solid = straight II, dashed = crossing X · open circle = receives') + '</text>';
 	return s + '</svg>';
 }
