@@ -19,7 +19,7 @@ test('passing generator produces valid patterns', () => {
 });
 
 test('solo generator: every pattern is valid, balls integer', () => {
-	for (const [nR, nL, maxHeight] of [[3, 2, 4], [4, 3, 5], [2, 2, 4], [3, 1, 4]]) {
+	for (const [nR, nL, maxHeight] of [[3, 2, 8], [4, 3, 10], [2, 2, 8], [3, 1, 8]]) {
 		const res = generateSolo({ nR, nL, maxHeight });
 		assert.ok(res.patterns.length > 0, nR + ':' + nL + ' has patterns');
 		for (const p of res.patterns) {
@@ -31,23 +31,23 @@ test('solo generator: every pattern is valid, balls integer', () => {
 });
 
 test('solo generator: holds excluded by default, included on demand', () => {
-	const noHolds = generateSolo({ nR: 3, nL: 2, maxHeight: 4 });
+	const noHolds = generateSolo({ nR: 3, nL: 2, maxHeight: 8 });
 	for (const s of [...noHolds.seqsA, ...noHolds.seqsB])
 		for (const o of s.throws)
 			assert.ok(!(o.kind === 'self' && o.v === 1), 'no same-hand 1s');
-	const withHolds = generateSolo({ nR: 3, nL: 2, maxHeight: 4, includeHolds: true });
+	const withHolds = generateSolo({ nR: 3, nL: 2, maxHeight: 8, includeHolds: true });
 	assert.ok(withHolds.patterns.length > noHolds.patterns.length);
 });
 
-test('solo generator: max height respected in global units', () => {
-	const maxHeight = 3;
+test('solo generator: max height respected in global vanilla units', () => {
+	const maxHeight = 6;
 	const res = generateSolo({ nR: 3, nL: 2, maxHeight });
 	const nFast = res.cfg.nFast;
 	const check = (seqs, n, m) => {
 		for (const s of seqs)
 			for (const o of s.throws) {
 				const own = o.kind === 'self' ? o.v : o.num / o.den;
-				assert.ok(own * nFast / n <= maxHeight + 1e-9);
+				assert.ok(2 * own * nFast / n <= maxHeight + 1e-9);
 			}
 	};
 	check(res.seqsA, res.cfg.nA, res.cfg.nB);
@@ -55,7 +55,7 @@ test('solo generator: max height respected in global units', () => {
 });
 
 test('solo jif completes, defaults to balls, has both hand tempos', () => {
-	const res = generateSolo({ nR: 3, nL: 2, maxHeight: 4 });
+	const res = generateSolo({ nR: 3, nL: 2, maxHeight: 8 });
 	const p = res.patterns[0];
 	const jif = buildJifSolo(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg);
 	assert.equal(jif.props.length, p.balls);
@@ -85,7 +85,7 @@ test('passing jif prop type is configurable', () => {
 });
 
 test('solo notation: hand-local and global strings', () => {
-	const res = generateSolo({ nR: 3, nL: 2, maxHeight: 4 });
+	const res = generateSolo({ nR: 3, nL: 2, maxHeight: 8 });
 	const p = res.patterns[0];
 	const sa = res.seqsA[p.ia], sb = res.seqsB[p.ib];
 	assert.equal(soloHandSeq(sa).split(' ').length, 3);

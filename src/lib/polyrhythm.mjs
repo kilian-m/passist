@@ -25,9 +25,12 @@
  *
  * Solo polyrhythm reuses the same machinery with the two "sides" being the
  * right and left hand of a single juggler (right = A, left = B). Hands do
- * not alternate: every beat of a side belongs to the same hand, so a
- * same-hand 1 is a hold and "passes" are crossing throws (X). Heights are
- * bounded in global units: beats of the faster hand.
+ * not alternate: every beat of a side belongs to the same hand, and
+ * "passes" are crossing throws (X). Internally values are in the hand's
+ * own beats; displayed values follow vanilla siteswap counting, where one
+ * own beat corresponds to two siteswap beats (an internal same-hand 1
+ * displays as 2 = hold). Height bounds are in vanilla units scaled to the
+ * faster hand.
  */
 
 export function gcd(a, b) { return b ? gcd(b, a % b) : a; }
@@ -51,9 +54,9 @@ export const defaultConfig = {
 export const soloDefaultConfig = {
 	nR: 3,            // right hand beats per cycle
 	nL: 2,            // left hand beats per cycle
-	minHeight: 1,     // inclusive, in beats of the faster hand
-	maxHeight: 5,     // inclusive, in beats of the faster hand
-	includeHolds: false, // same-hand 1 = the ball can just stay in the hand
+	minHeight: 2,     // inclusive, vanilla siteswap units scaled to the faster hand
+	maxHeight: 10,    // inclusive, vanilla siteswap units scaled to the faster hand
+	includeHolds: false, // same-hand 2 = the ball can just stay in the hand
 	allowZero: false,
 };
 
@@ -85,12 +88,14 @@ function makeOptions(n, m, cfg) {
 }
 
 // Same beat options for the solo case: hand with n beats per cycle against
-// the other hand with m; nFast scales global heights. Selfs stay in the same
-// hand (a 1 is a hold), passes cross to the other hand.
+// the other hand with m; selfs stay in the same hand (an internal 1,
+// displayed as 2, is a hold), passes cross to the other hand. Height
+// bounds are in vanilla units (2 per own beat, scaled to the faster
+// hand), so an internal own-beat value v has height 2 * v * nFast / n.
 function makeSoloOptions(n, m, nFast, cfg) {
 	const beats = [];
-	const vLo = Math.max(1, Math.ceil(cfg.minHeight * n / nFast - 1e-9));
-	const vHi = Math.floor(cfg.maxHeight * n / nFast + 1e-9);
+	const vLo = Math.max(1, Math.ceil(cfg.minHeight * n / (2 * nFast) - 1e-9));
+	const vHi = Math.floor(cfg.maxHeight * n / (2 * nFast) + 1e-9);
 	for (let i = 0; i < n; i++) {
 		const list = [];
 		if (cfg.allowZero)
@@ -100,8 +105,8 @@ function makeSoloOptions(n, m, nFast, cfg) {
 				continue;
 			list.push({ kind: 'self', v, land: (i + v) % n, num: v * m });
 		}
-		const jLo = Math.ceil(m * i / n + m * cfg.minHeight / nFast - 1e-9);
-		const jHi = Math.floor(m * i / n + m * cfg.maxHeight / nFast + 1e-9);
+		const jLo = Math.ceil(m * i / n + m * cfg.minHeight / (2 * nFast) - 1e-9);
+		const jHi = Math.floor(m * i / n + m * cfg.maxHeight / (2 * nFast) + 1e-9);
 		for (let jAbs = jLo; jAbs <= jHi; jAbs++) {
 			const num = n * jAbs - i * m;
 			if (num <= 0)
@@ -255,19 +260,21 @@ export function throwLabel(o, html) {
 	return fracLabel(o.num, o.den, o.altOrient ? 'X↔II' : (o.straight ? 'II' : 'X'), html);
 }
 
-// solo labels: in hand-local numbering selfs are plain integers, crossing
-// throws are fractions in the thrower's own beats marked X
+// solo labels follow vanilla siteswap counting: one own beat = two siteswap
+// beats, so displayed values are twice the internal own-beat values (a hold
+// shows as 2). Crossing throws are fractions on the other hand's grid,
+// marked X.
 export function soloThrowLabel(o, html) {
-	if (o.kind === 'self') return String(o.v);
-	return fracLabel(o.num, o.den, 'X', html);
+	if (o.kind === 'self') return String(2 * o.v);
+	return fracLabel(2 * o.num, o.den, 'X', html);
 }
 
-// global numbering: value scaled to beats of the faster hand,
+// global numbering: vanilla-style value scaled to the faster hand's rhythm,
 // II = stays in the same hand, X = crosses to the other hand.
-// o.num is the own-beat value times m, so global = num * nFast / (n * m).
+// o.num is the own-beat value times m, so global = 2 * num * nFast / (n * m).
 export function soloGlobalLabel(o, n, m, nFast, html) {
 	if (o.kind === 'self' && o.v === 0) return '0';
-	return fracLabel(o.num * nFast, n * m, o.kind === 'pass' ? 'X' : 'II', html);
+	return fracLabel(2 * o.num * nFast, n * m, o.kind === 'pass' ? 'X' : 'II', html);
 }
 
 export function soloHandSeq(seq, html) {
@@ -372,13 +379,10 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
  * are set explicitly per throw, judged in the throwing hand's own beats
  * (one own beat corresponds to two beats of a normal alternating siteswap).
  */
-// high-visibility colors for balls (clubs keep the jif default palette)
-export const neonBallColors = ['#39ff14', '#ff2079', '#00e5ff', '#ffea00', '#ff9100', '#b026ff', '#ff3131', '#04ff95'];
-
 function makeProps(count, propType) {
-	return Array.from({ length: count }, (_, i) =>
+	return Array.from({ length: count }, () =>
 		propType === 'ball'
-			? { type: 'ball', color: neonBallColors[i % neonBallColors.length] }
+			? { type: 'ball', color: '#ff0000' } // bright red for visibility
 			: { type: propType });
 }
 
@@ -417,8 +421,8 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 		meta: {
 			name: 'solo polyrhythm ' + nR + ':' + nL + '  R: ' + strR + '  L: ' + strL,
 			description: 'Solo polyrhythmic pattern, right hand ' + nR + ' beats per cycle against ' +
-				nL + ' for the left hand. Throw values are in the throwing hand\'s own beats. ' +
-				'Time unit: 1/' + L + ' cycle.',
+				nL + ' for the left hand. Throw values follow vanilla siteswap counting in the ' +
+				'throwing hand\'s own rhythm (2 = hold). Time unit: 1/' + L + ' cycle.',
 			generator: 'polyrhythm-solo-generator',
 		},
 		highLevelDescription: { type: 'polyrhythmicSiteswap', description: 'R: ' + strR + ' | L: ' + strL },

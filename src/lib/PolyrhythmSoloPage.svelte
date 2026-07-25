@@ -10,7 +10,7 @@
 		soloHandSeq, soloGlobalSeq, timelineSvg,
 	} from '$lib/polyrhythm.mjs';
 
-	let nR = 3, nL = 2, minHeight = 1, maxHeight = 5;
+	let nR = 3, nL = 2, minHeight = 2, maxHeight = 10;
 	let includeHolds = false, allowZero = false;
 	let propType = 'ball';
 	let ballFilter = -1;
@@ -29,8 +29,8 @@
 			const t0 = Date.now();
 			res = generateSolo({
 				nR: clamp(nR, 1, 9), nL: clamp(nL, 1, 9),
-				minHeight: clamp(minHeight, 0.5, 9),
-				maxHeight: clamp(maxHeight, 1, 12),
+				minHeight: clamp(minHeight, 1, 18),
+				maxHeight: clamp(maxHeight, 2, 24),
 				includeHolds, allowZero,
 			});
 			genInfo = res.patterns.length.toLocaleString() + ' patterns (' + (Date.now() - t0) + ' ms)';
@@ -146,22 +146,23 @@
 
 <p>
 	One juggler, hands at different tempos: the <b class=hR>right hand</b> throws {nR}
-	and the <b class=hL>left hand</b> {nL} times per cycle. Hand-local values are counted in the
-	<b>throwing hand's own beats</b> (crossing throws land on the other hand's grid, so they carry
-	fractions and an <span class=seqstr><sub class=orient>X</sub></span>). The global notation merges
-	both hands in time order and scales every value to <b>beats of the faster hand</b>:
+	and the <b class=hL>left hand</b> {nL} times per cycle. Values follow <b>vanilla siteswap
+	counting in the throwing hand's own rhythm</b> — a 4 lands two of that hand's beats later,
+	a 2 is a hold (crossing throws land on the other hand's grid, so they carry fractions and an
+	<span class=seqstr><sub class=orient>X</sub></span>). The global notation merges both hands in
+	time order and scales every value to the <b>faster hand's rhythm</b>:
 	<span class=seqstr><sub class=orient>II</sub></span> = stays in the same hand,
-	<span class=seqstr><sub class=orient>X</sub></span> = crosses. Heights are limited in global beats.
+	<span class=seqstr><sub class=orient>X</sub></span> = crosses. Height limits are in global values.
 </p>
 
 <div class=controls>
 	<InputField bind:value={nR} type=number id=nr label="beats right" min=1 max=9 defaultValue=3 />
 	<InputField bind:value={nL} type=number id=nl label="beats left" min=1 max=9 defaultValue=2 />
-	<InputField bind:value={minHeight} type=number id=minheight label="min height" min=0.5 max=9 step=0.5 defaultValue=1 />
-	<InputField bind:value={maxHeight} type=number id=maxheight label="max height" min=1 max=12 step=0.5 defaultValue=5 />
+	<InputField bind:value={minHeight} type=number id=minheight label="min height" min=1 max=18 step=1 defaultValue=2 />
+	<InputField bind:value={maxHeight} type=number id=maxheight label="max height" min=2 max=24 step=1 defaultValue=10 />
 </div>
 <div class=checks>
-	<label><input type=checkbox bind:checked={includeHolds}> include holds (same-hand 1s)</label>
+	<label><input type=checkbox bind:checked={includeHolds}> include holds (same-hand 2s)</label>
 	<label><input type=checkbox bind:checked={allowZero}> allow 0 (empty beat)</label>
 </div>
 {#if genError}<div class=generror>{genError}</div>{:else}<div class=geninfo>{genInfo}</div>{/if}
@@ -177,7 +178,7 @@
 	<div class=list>
 		<div class="row hdr">
 			<span class=hR>right hand</span><span class=hL>left hand</span>
-			<span class=glob>global (beats of the faster hand)</span><span></span>
+			<span class=glob>global (faster hand's rhythm)</span><span></span>
 		</div>
 		{#each list.slice(0, shown * PAGE) as p (p.ia + ':' + p.ib)}
 		<div class=row class:sel={sel === p} on:click={() => sel = p}
