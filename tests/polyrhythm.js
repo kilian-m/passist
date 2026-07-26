@@ -3,8 +3,22 @@ import * as assert from 'uvu/assert';
 import Jif from '../src/lib/jif.mjs';
 import {
 	generate, generateSolo, buildJif, buildJifSolo, validatePair,
-	soloHandSeq, soloGlobalSeq, lcm,
+	soloHandSeq, soloGlobalSeq, lcm, seqToken,
 } from '../src/lib/polyrhythm.mjs';
+
+test('seqToken uniquely identifies sequences (url round-trip)', () => {
+	const res = generateSolo({ nR: 3, nL: 2, maxHeight: 8 });
+	const tokens = res.seqsA.map(seqToken);
+	assert.equal(new Set(tokens).size, tokens.length, 'tokens unique per side');
+	const p = res.patterns[42 % res.patterns.length];
+	const rTok = seqToken(res.seqsA[p.ia]), lTok = seqToken(res.seqsB[p.ib]);
+	const found = res.patterns.find(q =>
+		seqToken(res.seqsA[q.ia]) === rTok && seqToken(res.seqsB[q.ib]) === lTok);
+	assert.is(found, p);
+	const pass = generate({ nA: 3, nB: 2 });
+	const pTokens = pass.seqsA.map(seqToken);
+	assert.equal(new Set(pTokens).size, pTokens.length);
+});
 
 test('passing generator produces valid patterns', () => {
 	const res = generate({ nA: 3, nB: 2 });

@@ -234,6 +234,12 @@ export function generateSolo(cfg) {
 	return { cfg, seqsA, seqsB, patterns };
 }
 
+// compact url token for one side's sequence: internal own-beat self values
+// and x<absolute landing beat> for passes/crossings, e.g. "2.2.x1"
+export function seqToken(seq) {
+	return seq.throws.map(o => o.kind === 'self' ? String(o.v) : 'x' + o.jAbs).join('.');
+}
+
 export function maskToBeats(mask, n) {
 	const r = [];
 	for (let b = 0; b < n; b++) if (mask & (1 << b)) r.push(b);

@@ -1,17 +1,32 @@
 <script>
+	import { onMount } from 'svelte';
 	import { defaults, useLocalStorage } from '$lib/passist.mjs';
 	import { base } from '$app/paths';
-	import { goto } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
 	import AnimationWidget from '$lib/AnimationWidget.svelte';
 	import InputField from '$lib/InputField.svelte';
 	import Jif from '$lib/jif.mjs';
 	import {
 		generateSolo, buildJifSolo, validatePair,
-		soloHandSeq, soloGlobalSeq, timelineSvg,
+		soloHandSeq, soloGlobalSeq, timelineSvg, seqToken,
 	} from '$lib/polyrhythm.mjs';
 
 	let nR = 3, nL = 2, minHeight = 2, maxHeight = 10;
 	let includeHolds = false, allowZero = false;
+
+	// pattern + settings live in the url so they can be saved and shared
+	let pendingR = null, pendingL = null;
+	if (typeof window !== 'undefined') {
+		const q = new URLSearchParams(window.location.search);
+		if (q.has('nr')) nR = +q.get('nr');
+		if (q.has('nl')) nL = +q.get('nl');
+		if (q.has('hmin')) minHeight = +q.get('hmin');
+		if (q.has('hmax')) maxHeight = +q.get('hmax');
+		if (q.get('holds') === '1') includeHolds = true;
+		if (q.get('zero') === '1') allowZero = true;
+		pendingR = q.get('r');
+		pendingL = q.get('l');
+	}
 	let propType = 'ball';
 	let ballFilter = -1;
 	let res = null, genError = '', genInfo = '';
@@ -40,6 +55,29 @@
 		}
 		sel = null;
 		shown = 1;
+		if (res && pendingR != null) {
+			sel = res.patterns.find(p =>
+				seqToken(res.seqsA[p.ia]) === pendingR && seqToken(res.seqsB[p.ib]) === pendingL) || null;
+			pendingR = pendingL = null;
+		}
+	}
+
+	let mounted = false;
+	onMount(() => { mounted = true; });
+	$: if (mounted) syncUrl(res, sel);
+	function syncUrl() {
+		if (!res) return;
+		const q = new URLSearchParams();
+		q.set('nr', res.cfg.nR); q.set('nl', res.cfg.nL);
+		q.set('hmin', res.cfg.minHeight); q.set('hmax', res.cfg.maxHeight);
+		if (res.cfg.includeHolds) q.set('holds', '1');
+		if (res.cfg.allowZero) q.set('zero', '1');
+		if (sel) {
+			q.set('r', seqToken(res.seqsA[sel.ia]));
+			q.set('l', seqToken(res.seqsB[sel.ib]));
+		}
+		try { replaceState('?' + q.toString(), {}); }
+		catch { history.replaceState(history.state, '', '?' + q.toString()); }
 	}
 
 	$: ballOptions = res ? [...new Set(res.patterns.map(p => p.balls))].sort((a, b) => a - b) : [];

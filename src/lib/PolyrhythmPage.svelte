@@ -2,13 +2,13 @@
 	import { onMount } from 'svelte';
 	import { defaults, useLocalStorage } from '$lib/passist.mjs';
 	import { base } from '$app/paths';
-	import { goto } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
 	import AnimationWidget from '$lib/AnimationWidget.svelte';
 	import InputField from '$lib/InputField.svelte';
 	import Jif from '$lib/jif.mjs';
 	import {
 		generate, buildJif, validatePair, seqString, clubCount,
-		maskToBeats, popcount, lcm, timelineSvg,
+		maskToBeats, popcount, lcm, timelineSvg, seqToken,
 	} from '$lib/polyrhythm.mjs';
 
 	let nA = 5, nB = 7, selfMax = 4, passMin = 2.5, passMax = 4.5;
@@ -37,11 +37,49 @@
 				res.interfaces.filter(i => i.nPasses > 0).length + ' interfaces with passes (' +
 				(Date.now() - t0) + ' ms)';
 			passFilter = -1;
-			selectInterface(res.interfaces.find(i => i.nPasses > 0) || null);
+			if (!applyPendingSelection())
+				selectInterface(res.interfaces.find(i => i.nPasses > 0) || null);
 		} catch (e) {
 			res = null; itf = null; selA = selB = null;
 			genError = e.message || String(e);
 		}
+	}
+
+	// pattern + settings live in the url so they can be saved and shared
+	let pendingA = null, pendingB = null;
+	function applyPendingSelection() {
+		const tokA = pendingA, tokB = pendingB;
+		pendingA = pendingB = null;
+		if (tokA == null || tokB == null) return false;
+		const iA = res.seqsA.findIndex(s => seqToken(s) === tokA);
+		const iB = res.seqsB.findIndex(s => seqToken(s) === tokB);
+		if (iA < 0 || iB < 0) return false;
+		const sa = res.seqsA[iA], sb = res.seqsB[iB];
+		if (sb.recv !== sa.out || sb.out !== sa.recv) return false;
+		const found = res.interfaces.find(i => i.SA === sa.recv && i.SB === sa.out);
+		if (!found) return false;
+		selectInterface(found);
+		selA = iA;
+		selB = iB;
+		return true;
+	}
+
+	let mounted = false;
+	$: if (mounted) syncUrl(res, selA, selB);
+	function syncUrl() {
+		if (!res) return;
+		const q = new URLSearchParams();
+		q.set('na', res.cfg.nA); q.set('nb', res.cfg.nB);
+		q.set('smax', res.cfg.selfMax);
+		q.set('pmin', res.cfg.passMin); q.set('pmax', res.cfg.passMax);
+		if (!res.cfg.excludeHolds) q.set('holds', '1');
+		if (res.cfg.allowZero) q.set('zero', '1');
+		if (selA != null && selB != null) {
+			q.set('a', seqToken(res.seqsA[selA]));
+			q.set('b', seqToken(res.seqsB[selB]));
+		}
+		try { replaceState('?' + q.toString(), {}); }
+		catch { history.replaceState(history.state, '', '?' + q.toString()); }
 	}
 	const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, +v || lo));
 
@@ -55,7 +93,20 @@
 	function selectA(i) { selA = i; pageB = 1; }
 	function selectB(i) { selB = i; }
 
-	onMount(doGenerate);
+	onMount(() => {
+		const q = new URLSearchParams(window.location.search);
+		if (q.has('na')) nA = +q.get('na');
+		if (q.has('nb')) nB = +q.get('nb');
+		if (q.has('smax')) selfMax = +q.get('smax');
+		if (q.has('pmin')) passMin = +q.get('pmin');
+		if (q.has('pmax')) passMax = +q.get('pmax');
+		if (q.get('holds') === '1') excludeHolds = false;
+		if (q.get('zero') === '1') allowZero = true;
+		pendingA = q.get('a');
+		pendingB = q.get('b');
+		doGenerate();
+		mounted = true;
+	});
 
 	$: interfaces = res ? res.interfaces.filter(i =>
 		i.nPasses > 0 && (passFilter < 0 || i.nPasses == passFilter)) : [];
