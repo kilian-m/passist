@@ -14,15 +14,10 @@ const lowerArmLength = 1    * hu;
 const handLength     = 0.8  * hu;
 const footLength     = 1.5  * hu; // original: 1.14
 const footWidth      = 0.8  * hu; // original: 0.46
-/*
- * Weaker than the real 9.8 on purpose. A pattern fixes how long a prop is in
- * the air, not how high it goes, so the throw velocity is solved for that
- * flight time and the peak works out at |gravity| * flight^2 / 8 — real
- * gravity therefore sends the big throws far out of frame rather than making
- * them flat. At 4.5 a high throw still reads as high while the pattern stays
- * within a few juggler heights.
- */
-const gravity = -4.5;
+// a pattern fixes how long a prop is in the air, not how high it goes, so the
+// throw velocity is solved for that flight time and the peak comes out at
+// |gravity| * flight^2 / 8 — raising this makes throws higher, not flatter
+const gravity = -9.8;
 
 const colors = {
 	sky: '#24b59f',
