@@ -392,6 +392,13 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
 // last moment and waits idle the rest of its long beat.
 const DWELL_RATIO = 2 / 3;
 
+// share of the transfer window a carry may take. When a hand throws to a hand
+// that has to throw again almost at once — a vanilla '1' — the prop is handed
+// across rather than tossed, so nearly the whole window is dwell and only a
+// token of it is flight. Applying DWELL_RATIO here instead would put a gap in
+// front of the catch: the receiving hand waits idle, then snatches it.
+const CARRY_RATIO = 5 / 6;
+
 function makeProps(count, propType) {
 	return Array.from({ length: count }, () =>
 		propType === 'ball'
@@ -422,10 +429,9 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 			// The dwell is spent in the catching hand, so it is bounded by that
 			// hand's beat gap, not the thrower's — anything above a full gap and
 			// the hand would still hold this prop when it has to throw the next
-			// one. The other bound is the transfer window itself: a low crossing
-			// leaves the fast hand shortly before the slow hand throws, so there
-			// is simply no time for a long carry however slow that hand is.
-			const dwell = DWELL_RATIO * Math.min(catchTick, duration);
+			// one. Where the window between the two throws is shorter than that,
+			// the prop is carried across instead (see CARRY_RATIO).
+			const dwell = Math.min(DWELL_RATIO * catchTick, CARRY_RATIO * duration);
 			throws.push({
 				time: i * tick, duration, from: limb, to, label: soloThrowLabel(o),
 				dwell,
