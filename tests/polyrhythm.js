@@ -80,6 +80,8 @@ test('solo jif completes, defaults to balls, has both hand tempos', () => {
 	assert.equal(jif.repetition.period, lcm(3, 2));
 	for (const t of jif.throws) {
 		assert.ok(t.duration > 0);
+		// every catch is held for a while and every throw keeps an arc
+		assert.ok(t.dwell > 0);
 		assert.ok(t.dwell < t.duration);
 		assert.type(t.spins, 'number');
 	}

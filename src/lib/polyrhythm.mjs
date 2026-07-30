@@ -386,6 +386,12 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
  * normal alternating siteswap). Spins follow the throwing hand's own beats,
  * the dwell the catching hand's — it is time the catcher holds the prop.
  */
+
+// share of a hand's beat gap spent holding rather than empty and travelling.
+// Half looks rushed at uneven tempos: the slow hand snatches its catch at the
+// last moment and waits idle the rest of its long beat.
+const DWELL_RATIO = 2 / 3;
+
 function makeProps(count, propType) {
 	return Array.from({ length: count }, () =>
 		propType === 'ball'
@@ -413,16 +419,17 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 				to = otherLimb;
 				catchTick = otherTick;
 			}
-			const soloHeight = duration / stretch;
-			// the dwell is spent in the catching hand, so it is judged in that
-			// hand's rhythm: half its beat gap at most, or the fast hand would
-			// still be holding this prop when it has to throw the next one.
-			// Half the flight is the other bound, so a low throw keeps an arc.
-			const hold = (soloHeight > 2 ? 1 : (soloHeight < 1 ? 0 : 0.5)) * catchTick / 2;
+			// The dwell is spent in the catching hand, so it is bounded by that
+			// hand's beat gap, not the thrower's — anything above a full gap and
+			// the hand would still hold this prop when it has to throw the next
+			// one. The other bound is the transfer window itself: a low crossing
+			// leaves the fast hand shortly before the slow hand throws, so there
+			// is simply no time for a long carry however slow that hand is.
+			const dwell = DWELL_RATIO * Math.min(catchTick, duration);
 			throws.push({
 				time: i * tick, duration, from: limb, to, label: soloThrowLabel(o),
-				dwell: Math.min(hold, duration / 2),
-				spins: Math.max(0, Math.floor(soloHeight - 2)),
+				dwell,
+				spins: Math.max(0, Math.floor(duration / stretch - 2)),
 			});
 		});
 	};
