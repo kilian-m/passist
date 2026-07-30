@@ -11,9 +11,9 @@
 		soloHandSeq, soloGlobalSeq, timelineSvg, seqToken,
 	} from '$lib/polyrhythm.mjs';
 
-	// tempo of the faster hand, with the speed slider where it starts
-	const fastHandThrowsPerMinute = 85;
-	const jugglingSpeed = soloJugglingSpeed(fastHandThrowsPerMinute, defaults.animationSpeed);
+	// tempo of the faster hand, with the speed slider where it starts. Balls run
+	// quicker than clubs, as they do in hand
+	const fastHandThrowsPerMinute = { ball: 100, club: 85 };
 
 	let nR = 3, nL = 2, minHeight = 2, maxHeight = 10;
 	let includeHolds = false, allowZero = false;
@@ -32,6 +32,7 @@
 		pendingL = q.get('l');
 	}
 	let propType = 'ball';
+	$: jugglingSpeed = soloJugglingSpeed(fastHandThrowsPerMinute[propType], defaults.animationSpeed);
 	let ballFilter = -1;
 	let res = null, genError = '', genInfo = '';
 	let sel = null;      // selected pattern object from res.patterns
