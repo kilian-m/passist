@@ -128,6 +128,23 @@ test('solo jif: no hand ever holds two props at once', () => {
 	}
 });
 
+/*
+ * Arcs are simulated ballistically against a fixed gravity and peak height goes
+ * with the square of the flight in seconds, so the tempo decides how high a
+ * throw looks. Running the global siteswap at one beat per beat of a normal
+ * siteswap is what makes a global 5 fly like a 5 anywhere else.
+ */
+test('solo jif: the faster hand throws at plain siteswap tempo', () => {
+	for (const [nR, nL] of [[5, 2], [3, 2], [5, 4], [3, 1], [7, 5]]) {
+		const res = generateSolo({ nR, nL, maxHeight: 9 });
+		const p = res.patterns[0];
+		const jif = buildJifSolo(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg);
+		const L = lcm(nR, nL), fastTick = L / Math.max(nR, nL);
+		// a hand of a vanilla siteswap throws every second beat
+		assert.is(fastTick / jif.timeStretchFactor, 2, nR + ':' + nL);
+	}
+});
+
 test('spins follow the global siteswap, not the thrower\'s own beats', () => {
 	const L = lcm(5, 2), nFast = 5;
 
@@ -142,7 +159,8 @@ test('spins follow the global siteswap, not the thrower\'s own beats', () => {
 		seq.throws.forEach((o, i) => {
 			if (o.kind === 'self' && o.v === 0) return;
 			const global = 2 * (o.kind === 'self' ? o.v * m : o.num) * nFast / (n * m);
-			want.set(limb + '@' + i * (L / n), Math.max(0, Math.floor(global - 2)));
+			// one rotation per pair of global beats: 3 and 4 single, 5 and 6 double
+			want.set(limb + '@' + i * (L / n), Math.max(0, Math.floor((global - 1) / 2)));
 		});
 	};
 	collect(res.seqsA[p.ia], 5, 2, 0);
@@ -150,7 +168,11 @@ test('spins follow the global siteswap, not the thrower\'s own beats', () => {
 	for (const t of jif.throws)
 		assert.is(t.spins, want.get(t.from + '@' + t.time), t.label + ' at t=' + t.time);
 	// the left hand's global 8 counts locally as 3 1/5, which would be a single
-	assert.is(jif.throws.find(t => t.from === 1 && t.duration === 8).spins, 6);
+	assert.is(jif.throws.find(t => t.from === 1 && t.duration === 8).spins, 3);
+	// the pairing itself, on the faster hand where global and local agree
+	const soloPairs = { 4: 1, 6: 2, 9: 4, 2: 0 };
+	for (const [dur, spins] of Object.entries(soloPairs))
+		assert.is(jif.throws.find(t => t.from === 0 && t.duration === +dur).spins, spins, 'global ' + dur);
 
 	// passing: each juggler's own beat is already a siteswap beat
 	const pr = generate({ nA: 5, nB: 2, selfMax: 6, passMin: 2.5, passMax: 5 });

@@ -332,7 +332,15 @@ export function clubCount(sa, sb, cfg) { return (sa.num + sb.num) / (cfg.nA * cf
  * understates everything the slow side throws: on solo 5:2 the left hand's
  * global 8 counts locally as 3¹⁄₅ and would turn a sextuple into a single.
  */
-const spinsFor = (duration, globalBeat) => Math.max(0, Math.floor(duration / globalBeat - 2));
+
+// passing: the classic club count, a 3 is a single and every beat above it
+// adds a rotation
+const passingSpins = h => Math.max(0, Math.floor(h - 2));
+
+// solo: one rotation per pair of global beats, so 3 and 4 are singles, 5 and 6
+// doubles, 7 and 8 triples. A hand's own beat spans two global beats, so this
+// counts a rotation for each of the thrower's beats the club is up.
+const soloSpins = h => Math.max(0, Math.floor((h - 1) / 2));
 
 export function buildJif(seqA, seqB, cfg, names, propType) {
 	names = names || ['A', 'B'];
@@ -360,7 +368,7 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
 					to = otherBase + ((c * m + o.jAbs) % 2);
 				}
 				throws.push({ time, duration, from: limbBase + (g % 2), to,
-					label: throwLabel(o), spins: spinsFor(duration, globalBeat) });
+					label: throwLabel(o), spins: passingSpins(duration / globalBeat) });
 			});
 		}
 	};
@@ -452,7 +460,7 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 			throws.push({
 				time: i * tick, duration, from: limb, to, label: soloThrowLabel(o),
 				dwell,
-				spins: spinsFor(duration, globalBeat),
+				spins: soloSpins(duration / globalBeat),
 			});
 		});
 	};
@@ -476,10 +484,13 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 			{ juggler: 0, type: 'left hand' },
 		],
 		props: makeProps(clubCount(seqR, seqL, cfg), propType),
-		// 1.5x faster than the per-juggler throw-rate normalisation: polyrhythm
-		// values are large in siteswap terms, so a quicker tempo keeps the
-		// physically simulated arcs at a realistic height
-		timeStretchFactor: 1.5 * L / (nR + nL),
+		// run one global siteswap beat per beat of a normal siteswap, so the
+		// faster hand throws at the tempo it would in a vanilla pattern and a
+		// global 5 flies exactly as high as a 5 anywhere else. The arcs are
+		// simulated ballistically against a fixed gravity, and peak height goes
+		// with the square of the flight in seconds, so a tempo set any faster
+		// than this flattens every throw and reads as heavy gravity.
+		timeStretchFactor: globalBeat,
 		repetition: { period: L },
 		throws,
 	};
