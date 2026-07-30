@@ -87,6 +87,45 @@ test('solo jif completes, defaults to balls, has both hand tempos', () => {
 	assert.ok(completed.throws.length >= jif.throws.length);
 });
 
+/*
+ * The dwell is deducted from the end of the flight, so it is time the
+ * *catching* hand holds the prop. Judging it in the throwing hand's rhythm
+ * made the slow hand's throws land 2.5 ticks early in a 5:2 fast hand whose
+ * own beats are only 2 ticks apart, so that hand held two props at once and
+ * its animated path degenerated into a curve spanning nearly the whole period.
+ */
+test('solo jif: no hand ever holds two props at once', () => {
+	const holdsPerHand = (sa, sb, cfg) => {
+		const { jif } = Jif.complete(buildJifSolo(sa, sb, cfg), { expand: true });
+		const period = jif.repetition.period;
+		const perProp = Array.from({ length: jif.props.length }, () => []);
+		for (const t of jif.throws)
+			perProp[t.prop].push({ start: t.time, end: t.time + t.duration - t.dwell, from: t.from });
+		const hands = Array.from({ length: jif.limbs.length }, () => []);
+		for (const flights of perProp) {
+			flights.sort((a, b) => a.start - b.start);
+			flights.forEach((f, i) => {
+				const caught = flights[(i + flights.length - 1) % flights.length].end % period;
+				hands[f.from].push([caught, f.start + (f.start >= caught - 1e-9 ? 0 : period)]);
+			});
+		}
+		return hands;
+	};
+	for (const [nR, nL] of [[5, 2], [3, 1], [3, 2], [4, 3], [5, 3], [5, 4]]) {
+		const res = generateSolo({ nR, nL, maxHeight: 9 });
+		for (const p of res.patterns.slice(0, 150)) {
+			const sa = res.seqsA[p.ia], sb = res.seqsB[p.ib];
+			for (const holds of holdsPerHand(sa, sb, res.cfg)) {
+				holds.sort((a, b) => a[0] - b[0]);
+				for (let i = 1; i < holds.length; i++)
+					assert.ok(holds[i][0] >= holds[i - 1][1] - 1e-9,
+						nR + ':' + nL + ' ' + soloHandSeq(sa) + ' | ' + soloHandSeq(sb) +
+						' — hold ' + holds[i] + ' overlaps ' + holds[i - 1]);
+			}
+		}
+	}
+});
+
 test('passing jif prop type is configurable', () => {
 	const res = generate({ nA: 3, nB: 2 });
 	const itf = res.interfaces.find(i => i.nPasses > 0);

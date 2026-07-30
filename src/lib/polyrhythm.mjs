@@ -382,8 +382,9 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
  * Jif for a solo polyrhythm pattern: one juggler, right hand on the nR grid,
  * left hand on the nL grid. The hands run at different tempos, which the
  * animation's per-juggler beat heuristic cannot express, so dwell and spins
- * are set explicitly per throw, judged in the throwing hand's own beats
- * (one own beat corresponds to two beats of a normal alternating siteswap).
+ * are set explicitly per throw (one own beat corresponds to two beats of a
+ * normal alternating siteswap). Spins follow the throwing hand's own beats,
+ * the dwell the catching hand's — it is time the catcher holds the prop.
  */
 function makeProps(count, propType) {
 	return Array.from({ length: count }, () =>
@@ -401,19 +402,26 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 		const tick = L / n, otherTick = L / m;
 		const stretch = tick / 2;
 		seq.throws.forEach((o, i) => {
-			let duration, to;
+			let duration, to, catchTick;
 			if (o.kind === 'self') {
 				if (o.v === 0) return;
 				duration = o.v * tick;
 				to = limb;
+				catchTick = tick;
 			} else {
 				duration = o.jAbs * otherTick - i * tick;
 				to = otherLimb;
+				catchTick = otherTick;
 			}
 			const soloHeight = duration / stretch;
+			// the dwell is spent in the catching hand, so it is judged in that
+			// hand's rhythm: half its beat gap at most, or the fast hand would
+			// still be holding this prop when it has to throw the next one.
+			// Half the flight is the other bound, so a low throw keeps an arc.
+			const hold = (soloHeight > 2 ? 1 : (soloHeight < 1 ? 0 : 0.5)) * catchTick / 2;
 			throws.push({
 				time: i * tick, duration, from: limb, to, label: soloThrowLabel(o),
-				dwell: (soloHeight > 2 ? 1 : (soloHeight < 1 ? 0 : 0.5)) * stretch,
+				dwell: Math.min(hold, duration / 2),
 				spins: Math.max(0, Math.floor(soloHeight - 2)),
 			});
 		});

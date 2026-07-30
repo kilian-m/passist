@@ -1035,19 +1035,26 @@ updateScene(jif, options)
 	for (const hand of this.hands) {
 		const pc = [];
 		hand.positionCurves.sort((a, b) => a.start - b.start);
-		let last = hand.positionCurves[hand.positionCurves.length - 1];
-		for (const curve of hand.positionCurves) {
-			const start = last.start + last.duration
-			const end = curve.start;
-			pc.push(new LinearCurve({
-				fromPoint: last.throwPos,
-				toPoint: curve.catchPos,
-				start: start,
-				duration: end - start + (end > start ? 0 : periodSeconds),
-			}));
+		const nDwells = hand.positionCurves.length;
+		hand.positionCurves.forEach((curve, i) => {
+			const last = hand.positionCurves[(i + nDwells - 1) % nDwells];
+			const start = last.start + last.duration;
+			// only the last dwell of the period wraps around; anywhere else a
+			// previous dwell reaching past this one means the hand holds two
+			// props at once (possible when jugglers run at different tempos).
+			// The transit then collapses to nothing — adding a period would
+			// stretch it over nearly the whole cycle and it would swallow every
+			// dwell in Movement's first-match lookup.
+			const end = curve.start + (i === 0 ? periodSeconds : 0);
+			if (end > start)
+				pc.push(new LinearCurve({
+					fromPoint: last.throwPos,
+					toPoint: curve.catchPos,
+					start: start,
+					duration: end - start,
+				}));
 			pc.push(curve);
-			last = curve;
-		}
+		});
 		hand.movement = new Movement({
 			positionCurves: pc,
 			periodSeconds: periodSeconds,
