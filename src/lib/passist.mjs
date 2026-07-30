@@ -6,7 +6,7 @@ const defaults = {
 	nJugglers: 2,
 	propType: 'club',
 	jugglingSpeed: 2.8,
-	animationSpeed: 0.8,
+	animationSpeed: 1,
 	siteswapGeneratorParams: {
 		nProps: 7,
 		period: 5,
