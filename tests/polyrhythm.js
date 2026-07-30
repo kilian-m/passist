@@ -214,22 +214,41 @@ test('spins follow the global siteswap, not the thrower\'s own beats', () => {
 	assert.is(jif.throws.find(t => t.from === 1 && t.duration === 8).spins, 3);
 
 	// passing: each juggler's own beat is already a siteswap beat, and what the
-	// faster juggler catches dwells the same however it was thrown, so those keep
-	// the classic count on their notated value
+	// faster juggler catches dwells the same however it was thrown, so those sit
+	// on the same pairing as solo — one count for both pages
 	const pr = generate({ nA: 5, nB: 2, selfMax: 6, passMin: 2.5, passMax: 5 });
 	const itf = pr.interfaces.find(i => i.nPasses > 0);
 	const pj = buildJif(pr.seqsA[itf.aIdx[0]], pr.seqsB[itf.bIdx[0]], pr.cfg);
-	const classic = h => Math.max(0, Math.floor(h - 2));
 	let fastCaught = 0;
 	for (const t of pj.throws)
 		if (t.to < 2) {
-			assert.is(t.spins, classic(t.duration / (L / nFast)), t.label + ' caught by the fast juggler');
+			assert.is(t.spins, pair(t.duration / (L / nFast)), t.label + ' caught by the fast juggler');
 			fastCaught++;
 		}
 	assert.ok(fastCaught > 0, 'sample covers the fast juggler');
 	// the slow juggler's own count would understate how long its clubs are up
-	assert.ok(pj.throws.some(t => t.from >= 2 && t.to < 2 && classic(t.duration / (L / 2)) < t.spins),
+	assert.ok(pj.throws.some(t => t.from >= 2 && t.to < 2 && pair(t.duration / (L / 2)) < t.spins),
 		'local counting would understate the slow juggler');
+});
+
+/*
+ * 5:7 with B the faster juggler: B's own beat is the global beat, so its 4s are
+ * global 4s and pair down to singles the same way the fast hand's do on the solo
+ * page. A is slower, so the same notated 4 is a global 5.6 and stays a double.
+ */
+test('passing spins: the faster juggler\'s 4s are singles', () => {
+	const res = generate({ nA: 5, nB: 7, selfMax: 4, passMin: 2.5, passMax: 4.5 });
+	let sa = null, sb = null;
+	for (const itf of res.interfaces) {
+		const a = itf.aIdx.find(i => seqToken(res.seqsA[i]) === '1.3.x7.4.4');
+		const b = itf.bIdx.find(i => seqToken(res.seqsB[i]) === '1.3.3.3.x5.4.4');
+		if (a !== undefined && b !== undefined) { sa = res.seqsA[a]; sb = res.seqsB[b]; break; }
+	}
+	assert.ok(sa && sb, 'sample pattern still generated');
+	const jif = buildJif(sa, sb, res.cfg);
+	const four = j => jif.throws.find(t => (j === 'A' ? t.from < 2 : t.from >= 2) && t.label === '4');
+	assert.is(four('B').spins, 1, "the faster juggler's 4 is a single");
+	assert.is(four('A').spins, 2, "the slower juggler's 4 is a global 5.6 and stays a double");
 });
 
 /*

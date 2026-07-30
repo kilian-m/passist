@@ -359,14 +359,12 @@ const CARRY_RATIO = 5 / 6;
 const spinHeight = (duration, dwell, globalBeat) =>
 	(duration - dwell) / globalBeat + 2 * DWELL_RATIO;
 
-// passing: the classic club count, a 3 is a single and every beat above it
-// adds a rotation
-const passingSpins = h => Math.max(0, Math.floor(h - 2));
-
-// solo: one rotation per pair of global beats, so 3 and 4 are singles, 5 and 6
-// doubles, 7 and 8 triples. A hand's own beat spans two global beats, so this
-// counts a rotation for each of the thrower's beats the club is up.
-const soloSpins = h => Math.max(0, Math.floor((h - 1) / 2));
+// One rotation per pair of global beats, so 3 and 4 are singles, 5 and 6
+// doubles, 7 and 8 triples: a hand's own beat spans two global beats, so this
+// counts a rotation for each of the throwing hand's beats the club is up. The
+// same count serves a passing juggler, whose two hands alternate over their
+// own beat exactly as a solo juggler's do.
+const spinsFor = h => Math.max(0, Math.floor((h - 1) / 2));
 
 export function buildJif(seqA, seqB, cfg, names, propType) {
 	names = names || ['A', 'B'];
@@ -399,7 +397,7 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
 				// second beat of theirs — that gap is what the dwell is judged in
 				const dwell = Math.min(DWELL_RATIO * catchHandGap, CARRY_RATIO * duration);
 				throws.push({ time, duration, from: limbBase + (g % 2), to, label: throwLabel(o),
-					dwell, spins: passingSpins(spinHeight(duration, dwell, globalBeat)) });
+					dwell, spins: spinsFor(spinHeight(duration, dwell, globalBeat)) });
 			});
 		}
 	};
@@ -496,7 +494,7 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 			throws.push({
 				time: i * tick, duration, from: limb, to, label: soloThrowLabel(o),
 				dwell,
-				spins: soloSpins(spinHeight(duration, dwell, globalBeat)),
+				spins: spinsFor(spinHeight(duration, dwell, globalBeat)),
 			});
 		});
 	};
