@@ -1,4 +1,4 @@
-import{d as Ss,c as Wo}from"./passist.BTbDmrMz.js";/**
+import{d as Ss,c as Wo}from"./passist.BX3NB9Fe.js";/**
  * @license
  * Copyright 2010-2023 Three.js Authors
  * SPDX-License-Identifier: MIT
