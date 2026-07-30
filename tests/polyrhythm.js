@@ -3,7 +3,7 @@ import * as assert from 'uvu/assert';
 import Jif from '../src/lib/jif.mjs';
 import {
 	generate, generateSolo, buildJif, buildJifSolo, validatePair,
-	soloHandSeq, soloGlobalSeq, lcm, seqToken,
+	soloHandSeq, soloGlobalSeq, lcm, seqToken, soloJugglingSpeed,
 } from '../src/lib/polyrhythm.mjs';
 
 test('seqToken uniquely identifies sequences (url round-trip)', () => {
@@ -142,6 +142,26 @@ test('solo jif: the faster hand throws at plain siteswap tempo', () => {
 		const L = lcm(nR, nL), fastTick = L / Math.max(nR, nL);
 		// a hand of a vanilla siteswap throws every second beat
 		assert.is(fastTick / jif.timeStretchFactor, 2, nR + ':' + nL);
+	}
+});
+
+test('solo juggling speed hits the asked-for throw rate for the faster hand', () => {
+	// the animation advances jugglingSpeed * animationSpeed beats per second and
+	// the faster hand throws every second beat, so this is the rate it runs at
+	const rate = (js, as) => 30 * js * as;
+	for (const tpm of [85, 60, 120])
+		for (const animationSpeed of [0.8, 1, 0.5]) {
+			const js = soloJugglingSpeed(tpm, animationSpeed);
+			assert.ok(Math.abs(rate(js, animationSpeed) - tpm) < 1e-9, tpm + ' at ' + animationSpeed);
+		}
+
+	// and the "every second beat" the rate rests on holds for every ratio
+	for (const [nR, nL] of [[5, 2], [3, 2], [5, 4], [3, 1], [7, 5]]) {
+		const res = generateSolo({ nR, nL, maxHeight: 9 });
+		const p = res.patterns[0];
+		const jif = buildJifSolo(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg);
+		const throws = jif.throws.filter(t => t.from === (nR >= nL ? 0 : 1)).map(t => t.time).sort((a, b) => a - b);
+		assert.is(throws[1] - throws[0], 2 * jif.timeStretchFactor, nR + ':' + nL);
 	}
 });
 

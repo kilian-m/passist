@@ -7,9 +7,13 @@
 	import InputField from '$lib/InputField.svelte';
 	import Jif from '$lib/jif.mjs';
 	import {
-		generateSolo, buildJifSolo, validatePair,
+		generateSolo, buildJifSolo, validatePair, soloJugglingSpeed,
 		soloHandSeq, soloGlobalSeq, timelineSvg, seqToken,
 	} from '$lib/polyrhythm.mjs';
+
+	// tempo of the faster hand, with the speed slider where it starts
+	const fastHandThrowsPerMinute = 85;
+	const jugglingSpeed = soloJugglingSpeed(fastHandThrowsPerMinute, defaults.animationSpeed);
 
 	let nR = 3, nL = 2, minHeight = 2, maxHeight = 10;
 	let includeHolds = false, allowZero = false;
@@ -256,7 +260,7 @@
 	{#if pattern.completed}
 	<div class=animwrap>
 		<div class=animbox>
-			<AnimationWidget jif={pattern.completed} animationSpeed={parseFloat(animationSpeed)} />
+			<AnimationWidget jif={pattern.completed} {jugglingSpeed} animationSpeed={parseFloat(animationSpeed)} />
 		</div>
 		<div class=controls>
 			<InputField id=proptype type=custom label="Prop type">

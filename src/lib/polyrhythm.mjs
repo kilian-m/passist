@@ -429,6 +429,19 @@ function makeProps(count, propType) {
 			: { type: propType });
 }
 
+/*
+ * Juggling speed that runs the faster hand at a given throw rate. That hand's
+ * tick is two global beats (see the timeStretchFactor below) and the animation
+ * advances jugglingSpeed * animationSpeed beats per real second, so the hand
+ * throws 30 * jugglingSpeed * animationSpeed times a minute — whatever the
+ * ratio of the two hands. Pass the animation speed the player starts at rather
+ * than its live value, so the speed slider scales the tempo from here instead
+ * of being cancelled out.
+ */
+export function soloJugglingSpeed(throwsPerMinute, animationSpeed) {
+	return 2 * throwsPerMinute / (60 * animationSpeed);
+}
+
 export function buildJifSolo(seqR, seqL, cfg, propType) {
 	propType = propType || 'ball';
 	const nR = cfg.nA, nL = cfg.nB;
