@@ -128,6 +128,41 @@ test('solo jif: no hand ever holds two props at once', () => {
 	}
 });
 
+test('spins follow the global siteswap, not the thrower\'s own beats', () => {
+	const L = lcm(5, 2), nFast = 5;
+
+	// solo: scaled to the faster hand, one own beat spanning two siteswap beats
+	const res = generateSolo({ nR: 5, nL: 2, maxHeight: 9 });
+	const p = res.patterns.find(q => seqToken(res.seqsA[q.ia]) === '2.2.3.x3.x2'
+		&& seqToken(res.seqsB[q.ib]) === 'x4.x6');
+	assert.ok(p, 'sample pattern still generated');
+	const jif = buildJifSolo(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg);
+	const want = new Map();
+	const collect = (seq, n, m, limb) => {
+		seq.throws.forEach((o, i) => {
+			if (o.kind === 'self' && o.v === 0) return;
+			const global = 2 * (o.kind === 'self' ? o.v * m : o.num) * nFast / (n * m);
+			want.set(limb + '@' + i * (L / n), Math.max(0, Math.floor(global - 2)));
+		});
+	};
+	collect(res.seqsA[p.ia], 5, 2, 0);
+	collect(res.seqsB[p.ib], 2, 5, 1);
+	for (const t of jif.throws)
+		assert.is(t.spins, want.get(t.from + '@' + t.time), t.label + ' at t=' + t.time);
+	// the left hand's global 8 counts locally as 3 1/5, which would be a single
+	assert.is(jif.throws.find(t => t.from === 1 && t.duration === 8).spins, 6);
+
+	// passing: each juggler's own beat is already a siteswap beat
+	const pr = generate({ nA: 5, nB: 2, selfMax: 6, passMin: 2.5, passMax: 5 });
+	const itf = pr.interfaces.find(i => i.nPasses > 0);
+	const pj = buildJif(pr.seqsA[itf.aIdx[0]], pr.seqsB[itf.bIdx[0]], pr.cfg);
+	for (const t of pj.throws)
+		assert.is(t.spins, Math.max(0, Math.floor(t.duration / (L / nFast) - 2)), t.label);
+	// the slow juggler spins for how long the club is up, not for its own count
+	assert.ok(pj.throws.some(t => Math.max(0, Math.floor(t.duration / (L / (t.from < 2 ? 5 : 2)) - 2)) < t.spins),
+		'local counting would understate the slow juggler');
+});
+
 test('passing jif prop type is configurable', () => {
 	const res = generate({ nA: 3, nB: 2 });
 	const itf = res.interfaces.find(i => i.nPasses > 0);

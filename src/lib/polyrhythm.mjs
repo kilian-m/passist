@@ -325,11 +325,23 @@ export function seqString(seq, html, markRecv) {
 
 export function clubCount(sa, sb, cfg) { return (sa.num + sb.num) / (cfg.nA * cfg.nB); }
 
+/*
+ * Spins follow the global siteswap value — every throw scaled to the faster
+ * side's rhythm — so a throw spins for how high it actually flies rather than
+ * for how the side that made it counts. Judging it in the thrower's own beats
+ * understates everything the slow side throws: on solo 5:2 the left hand's
+ * global 8 counts locally as 3¹⁄₅ and would turn a sextuple into a single.
+ */
+const spinsFor = (duration, globalBeat) => Math.max(0, Math.floor(duration / globalBeat - 2));
+
 export function buildJif(seqA, seqB, cfg, names, propType) {
 	names = names || ['A', 'B'];
 	propType = propType || 'club';
 	const nA = cfg.nA, nB = cfg.nB;
 	const L = lcm(nA, nB);
+	// one beat of the global siteswap: each juggler's own beat is already a
+	// siteswap beat here, since their hands alternate
+	const globalBeat = L / Math.max(nA, nB);
 	const periodCycles = (nA % 2 === 0 && nB % 2 === 0) ? 1 : 2;
 	const throws = [];
 	const add = (seq, n, m, limbBase, otherBase) => {
@@ -338,14 +350,17 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
 			seq.throws.forEach((o, i) => {
 				const g = c * n + i;
 				const time = g * tick;
+				let duration, to;
 				if (o.kind === 'self') {
 					if (o.v === 0) return;
-					throws.push({ time, duration: o.v * tick,
-						from: limbBase + (g % 2), to: limbBase + ((g + o.v) % 2), label: throwLabel(o) });
+					duration = o.v * tick;
+					to = limbBase + ((g + o.v) % 2);
 				} else {
-					throws.push({ time, duration: o.jAbs * otherTick - i * tick,
-						from: limbBase + (g % 2), to: otherBase + ((c * m + o.jAbs) % 2), label: throwLabel(o) });
+					duration = o.jAbs * otherTick - i * tick;
+					to = otherBase + ((c * m + o.jAbs) % 2);
 				}
+				throws.push({ time, duration, from: limbBase + (g % 2), to,
+					label: throwLabel(o), spins: spinsFor(duration, globalBeat) });
 			});
 		}
 	};
@@ -383,8 +398,8 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
  * left hand on the nL grid. The hands run at different tempos, which the
  * animation's per-juggler beat heuristic cannot express, so dwell and spins
  * are set explicitly per throw (one own beat corresponds to two beats of a
- * normal alternating siteswap). Spins follow the throwing hand's own beats,
- * the dwell the catching hand's — it is time the catcher holds the prop.
+ * normal alternating siteswap). Spins follow the global siteswap value, the
+ * dwell the catching hand's beat — it is time the catcher holds the prop.
  */
 
 // share of a hand's beat gap spent holding rather than empty and travelling.
@@ -410,10 +425,12 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 	propType = propType || 'ball';
 	const nR = cfg.nA, nL = cfg.nB;
 	const L = lcm(nR, nL);
+	// one beat of the global siteswap: a hand's own beat spans two of them,
+	// counted in the faster hand's rhythm
+	const globalBeat = L / (2 * Math.max(nR, nL));
 	const throws = [];
 	const add = (seq, n, m, limb, otherLimb) => {
 		const tick = L / n, otherTick = L / m;
-		const stretch = tick / 2;
 		seq.throws.forEach((o, i) => {
 			let duration, to, catchTick;
 			if (o.kind === 'self') {
@@ -435,7 +452,7 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 			throws.push({
 				time: i * tick, duration, from: limb, to, label: soloThrowLabel(o),
 				dwell,
-				spins: Math.max(0, Math.floor(duration / stretch - 2)),
+				spins: spinsFor(duration, globalBeat),
 			});
 		});
 	};
