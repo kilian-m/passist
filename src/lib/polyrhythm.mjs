@@ -339,7 +339,8 @@ const passingSpins = h => Math.max(0, Math.floor(h - 2));
 
 // solo: one rotation per pair of global beats, so 3 and 4 are singles, 5 and 6
 // doubles, 7 and 8 triples. A hand's own beat spans two global beats, so this
-// counts a rotation for each of the thrower's beats the club is up.
+// counts a rotation for each of the thrower's beats the club is up. Fed the
+// flight rather than the notated value — see spinHeight in buildJifSolo.
 const soloSpins = h => Math.max(0, Math.floor((h - 1) / 2));
 
 export function buildJif(seqA, seqB, cfg, names, propType) {
@@ -470,10 +471,19 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 			// one. Where the window between the two throws is shorter than that,
 			// the prop is carried across instead (see CARRY_RATIO).
 			const dwell = Math.min(DWELL_RATIO * catchTick, CARRY_RATIO * duration);
+			// A club only turns while it is in the air, and how much of its value
+			// is flight depends on which hand catches it: a crossing into the
+			// slower hand is carried for most of it. At 3:2 the right hand's
+			// global 3 flies one beat and is held two — a hand-over, however it
+			// is notated, while the left hand's global 3 into the fast hand flies
+			// for 1²⁄₃. So spin for the flight, counted as the value the faster
+			// hand would give it: that hand always dwells DWELL_RATIO of its own
+			// two-global-beat gap, which is what keeps its own 3s and 4s single.
+			const spinHeight = (duration - dwell) / globalBeat + 2 * DWELL_RATIO;
 			throws.push({
 				time: i * tick, duration, from: limb, to, label: soloThrowLabel(o),
 				dwell,
-				spins: soloSpins(duration / globalBeat),
+				spins: soloSpins(spinHeight),
 			});
 		});
 	};

@@ -165,6 +165,29 @@ test('solo juggling speed hits the asked-for throw rate for the faster hand', ()
 	}
 });
 
+/*
+ * A club only turns while it is in the air, and how much of a throw's value is
+ * flight depends on which hand catches it. At 3:2 the right hand's global 3
+ * crosses into the slow left hand, which holds it for two of its three beats —
+ * one beat of flight, a hand-over. The left hand's global 3 goes to the fast
+ * hand instead and flies for 1 2/3, a real single.
+ */
+test('solo spins: a throw that is mostly carried does not spin', () => {
+	const res = generateSolo({ nR: 3, nL: 2, minHeight: 2, maxHeight: 9 });
+	const p = res.patterns.find(q => seqToken(res.seqsA[q.ia]) === 'x1.3.x2'
+		&& seqToken(res.seqsB[q.ib]) === 'x2.x3');
+	assert.ok(p, 'sample pattern still generated');
+	const jif = buildJifSolo(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg);
+	const globalBeat = jif.timeStretchFactor;
+	const both = jif.throws.filter(t => Math.abs(t.duration / globalBeat - 3) < 1e-9);
+	assert.is(both.length, 2, 'the pattern has a global 3 into each hand');
+	const intoSlow = both.find(t => t.to === 1), intoFast = both.find(t => t.to === 0);
+	assert.ok((intoSlow.duration - intoSlow.dwell) / globalBeat < 1.5, 'carried, barely flies');
+	assert.is(intoSlow.spins, 0, 'a hand-over does not spin');
+	assert.ok((intoFast.duration - intoFast.dwell) / globalBeat > 1.5, 'a real throw');
+	assert.is(intoFast.spins, 1, 'the same notated value into the fast hand is a single');
+});
+
 test('spins follow the global siteswap, not the thrower\'s own beats', () => {
 	const L = lcm(5, 2), nFast = 5;
 
@@ -174,25 +197,21 @@ test('spins follow the global siteswap, not the thrower\'s own beats', () => {
 		&& seqToken(res.seqsB[q.ib]) === 'x4.x6');
 	assert.ok(p, 'sample pattern still generated');
 	const jif = buildJifSolo(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg);
-	const want = new Map();
-	const collect = (seq, n, m, limb) => {
-		seq.throws.forEach((o, i) => {
-			if (o.kind === 'self' && o.v === 0) return;
-			const global = 2 * (o.kind === 'self' ? o.v * m : o.num) * nFast / (n * m);
-			// one rotation per pair of global beats: 3 and 4 single, 5 and 6 double
-			want.set(limb + '@' + i * (L / n), Math.max(0, Math.floor((global - 1) / 2)));
-		});
-	};
-	collect(res.seqsA[p.ia], 5, 2, 0);
-	collect(res.seqsB[p.ib], 2, 5, 1);
+	const globalBeat = L / (2 * nFast);
+	const pair = h => Math.max(0, Math.floor((h - 1) / 2));
+
+	// everything the faster hand catches dwells the same however it was thrown,
+	// so those follow the pairing on their notated value: 3 and 4 single, 5 and
+	// 6 double, 7 and 8 triple
+	let fastCatches = 0;
 	for (const t of jif.throws)
-		assert.is(t.spins, want.get(t.from + '@' + t.time), t.label + ' at t=' + t.time);
+		if (t.to === 0) {
+			assert.is(t.spins, pair(t.duration / globalBeat), t.label + ' caught by the fast hand');
+			fastCatches++;
+		}
+	assert.ok(fastCatches >= 4, 'sample covers the fast hand');
 	// the left hand's global 8 counts locally as 3 1/5, which would be a single
 	assert.is(jif.throws.find(t => t.from === 1 && t.duration === 8).spins, 3);
-	// the pairing itself, on the faster hand where global and local agree
-	const soloPairs = { 4: 1, 6: 2, 9: 4, 2: 0 };
-	for (const [dur, spins] of Object.entries(soloPairs))
-		assert.is(jif.throws.find(t => t.from === 0 && t.duration === +dur).spins, spins, 'global ' + dur);
 
 	// passing: each juggler's own beat is already a siteswap beat
 	const pr = generate({ nA: 5, nB: 2, selfMax: 6, passMin: 2.5, passMax: 5 });
