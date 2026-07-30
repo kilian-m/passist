@@ -326,12 +326,38 @@ export function seqString(seq, html, markRecv) {
 export function clubCount(sa, sb, cfg) { return (sa.num + sb.num) / (cfg.nA * cfg.nB); }
 
 /*
- * Spins follow the global siteswap value — every throw scaled to the faster
- * side's rhythm — so a throw spins for how high it actually flies rather than
- * for how the side that made it counts. Judging it in the thrower's own beats
- * understates everything the slow side throws: on solo 5:2 the left hand's
- * global 8 counts locally as 3¹⁄₅ and would turn a sextuple into a single.
+ * Timing shared by both builders.
+ *
+ * The dwell is deducted from the end of a throw's flight, so it is time the
+ * *catching* hand holds the prop and belongs to that hand's rhythm, not the
+ * thrower's. Judged in the thrower's it can outlast the catcher's whole beat
+ * whenever the slow side throws to the fast one, leaving that hand holding two
+ * props at once — which it then animates as a single curve spanning the cycle.
  */
+
+// share of a hand's beat gap spent holding rather than empty and travelling.
+// Half looks rushed at uneven tempos: the slow hand snatches its catch at the
+// last moment and waits idle the rest of its long beat.
+const DWELL_RATIO = 2 / 3;
+
+// share of the transfer window a carry may take. When a hand throws to a hand
+// that has to throw again almost at once — a vanilla '1' — the prop is handed
+// across rather than tossed, so nearly the whole window is dwell and only a
+// token of it is flight. Applying DWELL_RATIO here instead would put a gap in
+// front of the catch: the receiving hand waits idle, then snatches it.
+const CARRY_RATIO = 5 / 6;
+
+/*
+ * Spins are judged on the global siteswap — every throw scaled to the faster
+ * side's rhythm — and on the flight rather than the notated value, since a
+ * club only turns while it is in the air. How much of a value is flight
+ * depends on which hand catches it, so the flight is counted as the value the
+ * faster side would give it: that side always dwells DWELL_RATIO of its own
+ * two-global-beat hand gap, which is what leaves its own throws on the plain
+ * mapping. See spinHeight in each builder.
+ */
+const spinHeight = (duration, dwell, globalBeat) =>
+	(duration - dwell) / globalBeat + 2 * DWELL_RATIO;
 
 // passing: the classic club count, a 3 is a single and every beat above it
 // adds a rotation
@@ -339,8 +365,7 @@ const passingSpins = h => Math.max(0, Math.floor(h - 2));
 
 // solo: one rotation per pair of global beats, so 3 and 4 are singles, 5 and 6
 // doubles, 7 and 8 triples. A hand's own beat spans two global beats, so this
-// counts a rotation for each of the thrower's beats the club is up. Fed the
-// flight rather than the notated value — see spinHeight in buildJifSolo.
+// counts a rotation for each of the thrower's beats the club is up.
 const soloSpins = h => Math.max(0, Math.floor((h - 1) / 2));
 
 export function buildJif(seqA, seqB, cfg, names, propType) {
@@ -359,17 +384,22 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
 			seq.throws.forEach((o, i) => {
 				const g = c * n + i;
 				const time = g * tick;
-				let duration, to;
+				let duration, to, catchHandGap;
 				if (o.kind === 'self') {
 					if (o.v === 0) return;
 					duration = o.v * tick;
 					to = limbBase + ((g + o.v) % 2);
+					catchHandGap = 2 * tick;
 				} else {
 					duration = o.jAbs * otherTick - i * tick;
 					to = otherBase + ((c * m + o.jAbs) % 2);
+					catchHandGap = 2 * otherTick;
 				}
-				throws.push({ time, duration, from: limbBase + (g % 2), to,
-					label: throwLabel(o), spins: passingSpins(duration / globalBeat) });
+				// a juggler alternates hands, so each of their hands throws every
+				// second beat of theirs — that gap is what the dwell is judged in
+				const dwell = Math.min(DWELL_RATIO * catchHandGap, CARRY_RATIO * duration);
+				throws.push({ time, duration, from: limbBase + (g % 2), to, label: throwLabel(o),
+					dwell, spins: passingSpins(spinHeight(duration, dwell, globalBeat)) });
 			});
 		}
 	};
@@ -410,18 +440,6 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
  * normal alternating siteswap). Spins follow the global siteswap value, the
  * dwell the catching hand's beat — it is time the catcher holds the prop.
  */
-
-// share of a hand's beat gap spent holding rather than empty and travelling.
-// Half looks rushed at uneven tempos: the slow hand snatches its catch at the
-// last moment and waits idle the rest of its long beat.
-const DWELL_RATIO = 2 / 3;
-
-// share of the transfer window a carry may take. When a hand throws to a hand
-// that has to throw again almost at once — a vanilla '1' — the prop is handed
-// across rather than tossed, so nearly the whole window is dwell and only a
-// token of it is flight. Applying DWELL_RATIO here instead would put a gap in
-// front of the catch: the receiving hand waits idle, then snatches it.
-const CARRY_RATIO = 5 / 6;
 
 function makeProps(count, propType) {
 	return Array.from({ length: count }, () =>
@@ -471,19 +489,14 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 			// one. Where the window between the two throws is shorter than that,
 			// the prop is carried across instead (see CARRY_RATIO).
 			const dwell = Math.min(DWELL_RATIO * catchTick, CARRY_RATIO * duration);
-			// A club only turns while it is in the air, and how much of its value
-			// is flight depends on which hand catches it: a crossing into the
-			// slower hand is carried for most of it. At 3:2 the right hand's
-			// global 3 flies one beat and is held two — a hand-over, however it
-			// is notated, while the left hand's global 3 into the fast hand flies
-			// for 1²⁄₃. So spin for the flight, counted as the value the faster
-			// hand would give it: that hand always dwells DWELL_RATIO of its own
-			// two-global-beat gap, which is what keeps its own 3s and 4s single.
-			const spinHeight = (duration - dwell) / globalBeat + 2 * DWELL_RATIO;
+			// At 3:2 the right hand's global 3 crosses into the slow left hand,
+			// which holds it for two of its three beats — one beat of flight, a
+			// hand-over however it is notated, while the left hand's global 3
+			// into the fast hand flies for 1²⁄₃ and is a real single.
 			throws.push({
 				time: i * tick, duration, from: limb, to, label: soloThrowLabel(o),
 				dwell,
-				spins: soloSpins(spinHeight),
+				spins: soloSpins(spinHeight(duration, dwell, globalBeat)),
 			});
 		});
 	};

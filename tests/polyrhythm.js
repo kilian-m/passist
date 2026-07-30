@@ -213,15 +213,57 @@ test('spins follow the global siteswap, not the thrower\'s own beats', () => {
 	// the left hand's global 8 counts locally as 3 1/5, which would be a single
 	assert.is(jif.throws.find(t => t.from === 1 && t.duration === 8).spins, 3);
 
-	// passing: each juggler's own beat is already a siteswap beat
+	// passing: each juggler's own beat is already a siteswap beat, and what the
+	// faster juggler catches dwells the same however it was thrown, so those keep
+	// the classic count on their notated value
 	const pr = generate({ nA: 5, nB: 2, selfMax: 6, passMin: 2.5, passMax: 5 });
 	const itf = pr.interfaces.find(i => i.nPasses > 0);
 	const pj = buildJif(pr.seqsA[itf.aIdx[0]], pr.seqsB[itf.bIdx[0]], pr.cfg);
+	const classic = h => Math.max(0, Math.floor(h - 2));
+	let fastCaught = 0;
 	for (const t of pj.throws)
-		assert.is(t.spins, Math.max(0, Math.floor(t.duration / (L / nFast) - 2)), t.label);
-	// the slow juggler spins for how long the club is up, not for its own count
-	assert.ok(pj.throws.some(t => Math.max(0, Math.floor(t.duration / (L / (t.from < 2 ? 5 : 2)) - 2)) < t.spins),
+		if (t.to < 2) {
+			assert.is(t.spins, classic(t.duration / (L / nFast)), t.label + ' caught by the fast juggler');
+			fastCaught++;
+		}
+	assert.ok(fastCaught > 0, 'sample covers the fast juggler');
+	// the slow juggler's own count would understate how long its clubs are up
+	assert.ok(pj.throws.some(t => t.from >= 2 && t.to < 2 && classic(t.duration / (L / 2)) < t.spins),
 		'local counting would understate the slow juggler');
+});
+
+/*
+ * The passing builder had the same latent fault the solo one did: it set no
+ * dwell, so the animation derived one from the *thrower's* beat. At 5:2 the
+ * slow juggler's throws then carried a dwell of 125% of the catching hand's
+ * gap, leaving that hand holding two clubs at once.
+ */
+test('passing jif: no hand ever holds two props at once', () => {
+	for (const [nA, nB] of [[5, 2], [3, 2], [4, 3], [5, 3], [3, 1]]) {
+		const pr = generate({ nA, nB, selfMax: 6, passMin: 2.5, passMax: 5 });
+		for (const itf of pr.interfaces.slice(0, 10)) {
+			const raw = buildJif(pr.seqsA[itf.aIdx[0]], pr.seqsB[itf.bIdx[0]], pr.cfg);
+			const { jif } = Jif.complete(raw, { expand: true });
+			const period = jif.repetition.period;
+			const perProp = Array.from({ length: jif.props.length }, () => []);
+			for (const t of jif.throws)
+				perProp[t.prop].push({ start: t.time, end: t.time + t.duration - t.dwell, from: t.from });
+			const hands = Array.from({ length: jif.limbs.length }, () => []);
+			for (const flights of perProp) {
+				flights.sort((a, b) => a.start - b.start);
+				flights.forEach((f, i) => {
+					const caught = flights[(i + flights.length - 1) % flights.length].end % period;
+					hands[f.from].push([caught, f.start + (f.start >= caught - 1e-9 ? 0 : period)]);
+				});
+			}
+			for (const holds of hands) {
+				holds.sort((a, b) => a[0] - b[0]);
+				for (let i = 1; i < holds.length; i++)
+					assert.ok(holds[i][0] >= holds[i - 1][1] - 1e-9,
+						nA + ':' + nB + ' hold ' + holds[i] + ' overlaps ' + holds[i - 1]);
+			}
+		}
+	}
 });
 
 test('passing jif prop type is configurable', () => {
