@@ -184,7 +184,8 @@
 	.empty { padding:1.5em; text-align:center; color:#888 }
 
 	.pattern { margin-top:1em }
-	.notations { display:flex; flex-wrap:wrap; gap:0.6em 2.5em; margin:0.6em 0 }
+	.credit { margin-top:0.8em; font-size:0.8em; color:#888 }
+	.notations { display:flex; flex-wrap:wrap; gap:0.6em 2.5em; margin:0.2em 0 0.6em }
 	.notwrap { overflow-x:auto; max-width:100% }
 	.notlabel { font-size:0.75em; text-transform:uppercase; letter-spacing:0.05em; color:#888 }
 	.notgrid { display:inline-grid; font-size:1.4em; overflow:visible; row-gap:0.1em }
@@ -216,20 +217,6 @@
 <p>
 	One juggler, hands at different tempos: the <b class=hL>left hand</b> throws {nL}
 	and the <b class=hR>right hand</b> {nR} times per cycle.
-</p>
-<p>
-	Patterns are written in the polyrhythmic notation suggested by <b>@don_kuehleon</b>
-	(<i>Polyrhythmic Siteswaps — A need to extend the siteswap notation system?</i>):
-	<span class=seqstr>({'{'}<span class=hL>4,4,4</span>{'}'},{'{'}<span class=hR>6,6</span>{'}'})</span>
-	is one cycle, the <b class=hL>left hand's</b> throws in the first braces and the
-	<b class=hR>right hand's</b> in the second. The faster hand is the beat reference and throws
-	on every second beat, so its values read like any siteswap and all values sum to the number of
-	balls times the cycle's beats. <span class=seqstr><sub class=orient>II</sub></span> = stays in
-	the same hand, <span class=seqstr><sub class=orient>X</sub></span> = crosses to the other hand.
-	The <b>dwell adjusted</b> version (marked °) lowers every throw landing in the slower hand by
-	2(A−B)/B for an A:B polyrhythm: that hand catches earlier and holds on, so both hands stay
-	empty for the same time. It is closer to how high the throws actually are, and the animation
-	follows it. Height limits are in unadjusted values.
 </p>
 
 <div class=controls>
@@ -281,6 +268,7 @@
 		<span class="who l">L</span><span class=seqstr>{@html soloHandSeq(pattern.sb, true)}</span>
 		<span class="who r">R</span><span class=seqstr>{@html soloHandSeq(pattern.sa, true)}</span>
 	</div>
+	<div class=credit>notation by @don_kuehleon</div>
 	<div class=notations>
 		{#each pattern.grids as g, k}
 		<div class=notwrap>
