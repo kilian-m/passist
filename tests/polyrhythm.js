@@ -3,7 +3,7 @@ import * as assert from 'uvu/assert';
 import Jif from '../src/lib/jif.mjs';
 import {
 	generate, generateSolo, buildJif, buildJifSolo, validatePair,
-	soloHandSeq, soloGlobalSeq, lcm, seqToken, soloJugglingSpeed,
+	soloHandSeq, soloNotation, soloNotationGrid, normalizeSoloNotation, soloNotationBeats, causalSvg, lcm, seqToken, soloJugglingSpeed,
 } from '../src/lib/polyrhythm.mjs';
 
 test('seqToken uniquely identifies sequences (url round-trip)', () => {
@@ -296,19 +296,76 @@ test('passing jif prop type is configurable', () => {
 	}
 });
 
-test('solo notation: hand-local and global strings', () => {
-	const res = generateSolo({ nR: 3, nL: 2, maxHeight: 8 });
+/*
+ * The examples of @don_kuehleon's "Polyrhythmic Siteswaps", with the left hand
+ * as the faster one as there. Written with X and II instead of a bare x, and
+ * fractions instead of rounded decimals.
+ */
+test('solo notation: the examples of the polyrhythmic siteswap document', () => {
+	const f = (w, n, d) => w + '¹²³⁴⁵⁶⁷⁸⁹'[n - 1] + '⁄' + '₁₂₃₄₅₆₇₈₉'[d - 1];
+	const cases = [
+		// 4 ball 3:2 fountain
+		[3, 2, '({4II,4II,4II},{6II,6II})', '({4II,4II,4II},{5II,5II})°'],
+		// 97531 in 3:2
+		[3, 2, '({9X,6II,2X},{10X,3X})', '({8X,6II,1X},{10X,3X})°'],
+		// the 3 ball 3:2 pattern of the dwell-time chapter
+		[3, 2, '({4II,4X,5X},{2X,3X})', '({4II,3X,4X},{2X,3X})°'],
+		// 4 ball 4:3 fountain
+		[4, 3, '({4II,4II,4II,4II},{' + [1, 2, 3].map(() => f(5, 1, 3) + 'II') + '})',
+			'({4II,4II,4II,4II},{' + [1, 2, 3].map(() => f(4, 2, 3) + 'II') + '})°'],
+		// the 4:3 pattern from (6x,2x)(4,6x)(4x,0)(6,4)
+		[4, 3, '({' + f(5, 1, 3) + 'X,4II,4X,6II},{2X,' + f(5, 1, 3) + 'X,' + f(5, 1, 3) + 'II})',
+			'({' + f(4, 2, 3) + 'X,4II,' + f(3, 1, 3) + 'X,6II},{2X,' + f(5, 1, 3) + 'X,' + f(4, 2, 3) + 'II})°'],
+	];
+	for (const [nL, nR, plain, adjusted] of cases) {
+		const res = generateSolo({ nR, nL, minHeight: 1, maxHeight: 12 });
+		const p = res.patterns.find(q => soloNotation(res.seqsA[q.ia], res.seqsB[q.ib], res.cfg) === plain);
+		assert.ok(p, plain + ' is generated');
+		assert.is(soloNotation(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg, true), adjusted);
+	}
+});
+
+test('solo notation: values sum to balls times the fast hand\'s beats', () => {
+	for (const [nR, nL] of [[3, 2], [2, 3], [5, 3], [4, 4]]) {
+		const res = generateSolo({ nR, nL, maxHeight: 8, allowZero: true });
+		for (const p of res.patterns.slice(0, 200)) {
+			const sa = res.seqsA[p.ia], sb = res.seqsB[p.ib];
+			const sum = soloNotationGrid(sa, sb, res.cfg).rows.flat()
+				.reduce((a, c) => a + (+c.label.replace(/[XI]/g, '').split(/(?=[¹²³⁴⁵⁶⁷⁸⁹])/)
+					.map((s, k) => k ? ('¹²³⁴⁵⁶⁷⁸⁹'.indexOf(s[0]) + 1) / ('₁₂₃₄₅₆₇₈₉'.indexOf(s[2]) + 1) : +s)
+					.reduce((x, y) => x + y, 0)), 0);
+			assert.ok(Math.abs(sum - p.balls * 2 * Math.max(nR, nL)) < 1e-9, soloNotation(sa, sb, res.cfg));
+		}
+	}
+});
+
+test('solo notation grid: every value starts on its beat', () => {
+	const res = generateSolo({ nR: 3, nL: 4, maxHeight: 8 });
 	const p = res.patterns[0];
-	const sa = res.seqsA[p.ia], sb = res.seqsB[p.ib];
-	assert.equal(soloHandSeq(sa).split(' ').length, 3);
-	assert.equal(soloHandSeq(sb).split(' ').length, 2);
-	const global = soloGlobalSeq(sa, sb, res.cfg);
-	// every non-zero throw is marked II (same hand) or X (crossing)
-	const marks = (global.match(/II|X/g) || []).length;
-	const throwCount = [...sa.throws, ...sb.throws].filter(o => !(o.kind === 'self' && o.v === 0)).length;
-	assert.equal(marks, throwCount);
-	// simultaneous first beats are grouped
-	assert.ok(global.startsWith('('));
+	const g = soloNotationGrid(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg);
+	assert.is(g.ticks, 12);
+	assert.equal(g.rows[0].map(c => c.col), [0, 3, 6, 9]);
+	assert.equal(g.rows[1].map(c => c.col), [0, 4, 8]);
+	assert.ok(g.rows.every(r => r.every(c => !/[XI]/.test(c.label) || /(X|II)$/.test(c.label))));
+});
+
+test('solo links: the ascii notation finds its pattern, also written as in the document', () => {
+	const res = generateSolo({ nR: 3, nL: 4, maxHeight: 10 });
+	const tokens = res.patterns.map(p => soloNotation(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg, false, 'ascii'));
+	assert.is(new Set(tokens.map(normalizeSoloNotation)).size, tokens.length, 'one pattern per link');
+	assert.ok(tokens.includes('({16/3X,4II,4X,6II},{2X,16/3X,16/3II})'));
+	assert.ok(tokens.map(normalizeSoloNotation).includes(normalizeSoloNotation('({16/3x, 4, 4x, 6}, {2x, 16/3x, 16/3})')));
+	assert.equal(soloNotationBeats('({16/3x,4,4x,6},{2x,16/3x,16/3})'), [4, 3]);
+	assert.is(soloNotationBeats('4x5x'), null);
+});
+
+test('causal diagram: one arrow per throw that is not a hold, per shown cycle', () => {
+	const res = generateSolo({ nR: 2, nL: 3, maxHeight: 8 });
+	const p = res.patterns.find(q => soloNotation(res.seqsA[q.ia], res.seqsB[q.ib], res.cfg) === '({4II,4X,5X},{2X,3X})');
+	const svg = causalSvg(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg);
+	// every arrow is drawn in each of the cycles -2 .. 2 that touches the window
+	assert.ok((svg.match(/marker-end/g) || []).length >= 2 * 5);
+	assert.ok(svg.startsWith('<svg') && svg.endsWith('</svg>'));
 });
 
 test.run();

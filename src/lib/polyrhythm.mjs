@@ -275,44 +275,74 @@ export function soloThrowLabel(o, html) {
 	return fracLabel(2 * o.num, o.den, 'X', html);
 }
 
-// global numbering: vanilla-style value scaled to the faster hand's rhythm,
-// II = stays in the same hand, X = crosses to the other hand.
-// o.num is the own-beat value times m, so global = 2 * num * nFast / (n * m).
-export function soloGlobalLabel(o, n, m, nFast, html) {
-	if (o.kind === 'self' && o.v === 0) return '0';
-	return fracLabel(2 * o.num * nFast, n * m, o.kind === 'pass' ? 'X' : 'II', html);
+/*
+ * Polyrhythmic notation after @don_kuehleon ("Polyrhythmic Siteswaps - A need
+ * to extend the siteswap notation system?"): ({L1,L2,...},{R1,R2,...}), one
+ * cycle, each hand's throws in time order. The faster hand is the beat
+ * reference and throws on every second beat, so every value is scaled to its
+ * rhythm (a sync value divided by the lower number of the polyrhythm) and the
+ * values of a cycle sum to balls * 2 * nFast. II = stays in the same hand,
+ * X = crosses to the other hand. o.num is the own-beat value times m, so the
+ * value is 2 * num * nFast / (n * m).
+ *
+ * The dwell-adjusted notation (marked °) lowers every throw landing in the
+ * slower hand by 2(A-B)/B for an A:B polyrhythm: the slower hand catches that
+ * much earlier and holds on, so both hands are empty for the same time. A
+ * throw the adjustment would take to 0 or below keeps its value.
+ *
+ * format: true for html, 'ascii' for links (improper fractions like 16/3),
+ * anything else for plain text.
+ */
+export function soloNotationValues(seq, n, m, cfg, adjusted, format) {
+	const A = Math.max(n, m), B = Math.min(n, m);
+	// in the value's denominator n * m = A * B, 2(A-B)/B is 2(A-B) * A
+	const cut = 2 * (A - B) * A;
+	return seq.throws.map(o => {
+		if (o.kind === 'self' && o.v === 0) return '0';
+		let num = 2 * o.num * A;
+		const intoSlow = A !== B && (o.kind === 'self' ? n : m) === B;
+		if (adjusted && intoSlow && num > cut)
+			num -= cut;
+		const orient = o.kind === 'pass' ? 'X' : 'II';
+		if (format === 'ascii') {
+			const g = gcd(num, n * m);
+			return num / g + (n * m / g === 1 ? '' : '/' + n * m / g) + orient;
+		}
+		return fracLabel(num, n * m, orient, format === true);
+	});
+}
+
+// one-line notation, left hand first as in sync notation
+export function soloNotation(sa, sb, cfg, adjusted, format) {
+	const l = soloNotationValues(sb, cfg.nB, cfg.nA, cfg, adjusted, format);
+	const r = soloNotationValues(sa, cfg.nA, cfg.nB, cfg, adjusted, format);
+	return '({' + l.join(',') + '},{' + r.join(',') + '})' + (adjusted ? '°' : '');
+}
+
+// Comparable form of an (unadjusted) notation string as written in links:
+// case, spaces and II marks do not matter, so the document's own style with a
+// bare x for crossings, ({4,4x,5x},{2x,3x}), matches too.
+export function normalizeSoloNotation(s) {
+	return s.replace(/\s+/g, '').replace(/II/gi, '').toLowerCase();
+}
+
+// beats per cycle of the left and right hand in a notation string, or null
+export function soloNotationBeats(s) {
+	const m = /^\(\{([^{}]*)\},\{([^{}]*)\}\)$/.exec(s.replace(/\s+/g, ''));
+	return m ? [m[1].split(',').length, m[2].split(',').length] : null;
+}
+
+// the notation laid out on a grid of lcm(nA, nB) ticks per cycle, each value
+// starting at its beat and running to the hand's next one: rows left, right
+export function soloNotationGrid(sa, sb, cfg, adjusted, format) {
+	const L = lcm(cfg.nA, cfg.nB);
+	const row = (seq, n, m) => soloNotationValues(seq, n, m, cfg, adjusted, format)
+		.map((label, i) => ({ label, col: i * L / n, span: L / n }));
+	return { ticks: L, rows: [row(sb, cfg.nB, cfg.nA), row(sa, cfg.nA, cfg.nB)] };
 }
 
 export function soloHandSeq(seq, html) {
 	return seq.throws.map(o => soloThrowLabel(o, html)).join(' ');
-}
-
-// both hands merged in time order, global numbering; simultaneous throws
-// are grouped as (right,left)
-export function soloGlobalSeq(sa, sb, cfg, html) {
-	const L = lcm(cfg.nA, cfg.nB), nFast = cfg.nFast;
-	const events = [];
-	const add = (seq, n, m, hand) => {
-		const tick = L / n;
-		seq.throws.forEach((o, i) => {
-			let label = soloGlobalLabel(o, n, m, nFast, html);
-			if (html)
-				label = '<span class="h' + hand + '">' + label + '</span>';
-			events.push({ t: i * tick, hand, label });
-		});
-	};
-	add(sa, cfg.nA, cfg.nB, 'R');
-	add(sb, cfg.nB, cfg.nA, 'L');
-	events.sort((a, b) => a.t - b.t || (a.hand === 'R' ? -1 : 1));
-	const parts = [];
-	for (let i = 0; i < events.length; ) {
-		let j = i;
-		while (j + 1 < events.length && events[j + 1].t === events[i].t) j++;
-		const labels = events.slice(i, j + 1).map(e => e.label);
-		parts.push(labels.length > 1 ? '(' + labels.join(',') + ')' : labels[0]);
-		i = j + 1;
-	}
-	return parts.join(' ');
 }
 
 export function seqString(seq, html, markRecv) {
@@ -435,8 +465,10 @@ export function buildJif(seqA, seqB, cfg, names, propType) {
  * left hand on the nL grid. The hands run at different tempos, which the
  * animation's per-juggler beat heuristic cannot express, so dwell and spins
  * are set explicitly per throw (one own beat corresponds to two beats of a
- * normal alternating siteswap). Spins follow the global siteswap value, the
- * dwell the catching hand's beat — it is time the catcher holds the prop.
+ * normal alternating siteswap). The dwell follows the dwell-adjusted
+ * notation (see soloNotationValues): both hands stay empty for the same time
+ * between a throw and the next catch, so the slower hand catches early and
+ * holds on. Spins then follow the adjusted value.
  */
 
 function makeProps(count, propType) {
@@ -466,6 +498,9 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 	// one beat of the global siteswap: a hand's own beat spans two of them,
 	// counted in the faster hand's rhythm
 	const globalBeat = L / (2 * Math.max(nR, nL));
+	// time a hand is empty between throwing and catching: the faster hand's
+	// share of its beat gap, and the same for the slower hand
+	const empty = (1 - DWELL_RATIO) * 2 * globalBeat;
 	const throws = [];
 	const add = (seq, n, m, limb, otherLimb) => {
 		const tick = L / n, otherTick = L / m;
@@ -481,16 +516,17 @@ export function buildJifSolo(seqR, seqL, cfg, propType) {
 				to = otherLimb;
 				catchTick = otherTick;
 			}
-			// The dwell is spent in the catching hand, so it is bounded by that
-			// hand's beat gap, not the thrower's — anything above a full gap and
-			// the hand would still hold this prop when it has to throw the next
-			// one. Where the window between the two throws is shorter than that,
-			// the prop is carried across instead (see CARRY_RATIO).
-			const dwell = Math.min(DWELL_RATIO * catchTick, CARRY_RATIO * duration);
-			// At 3:2 the right hand's global 3 crosses into the slow left hand,
-			// which holds it for two of its three beats — one beat of flight, a
-			// hand-over however it is notated, while the left hand's global 3
-			// into the fast hand flies for 1²⁄₃ and is a real single.
+			// The dwell is spent in the catching hand: it catches the empty time
+			// after its previous throw and holds on until it throws this prop,
+			// which lowers every throw into the slower hand by 2(A-B)/B global
+			// beats, as in the dwell-adjusted notation. Where the window between
+			// the two throws is shorter than that, the prop is carried across
+			// instead (see CARRY_RATIO) — the notation's exception for values the
+			// adjustment would take to 0 or below.
+			const dwell = Math.min(catchTick - empty, CARRY_RATIO * duration);
+			// At 3:2 the right hand's global 3 crosses into the slow left hand
+			// as an adjusted 2, a hand-over, while the left hand's global 3 into
+			// the fast hand flies for 1²⁄₃ and is a real single.
 			throws.push({
 				time: i * tick, duration, from: limb, to, label: soloThrowLabel(o),
 				dwell,
@@ -629,5 +665,68 @@ export function timelineSvg(sa, sb, cfg, colors, opts) {
 	s += '<text x="' + x0 + '" y="' + (H - 8) + '" font-size="11" fill="' + cSoft + '">' +
 		(solo ? 'dashed arcs = crossing to the other hand (X) · open circle = catches from the other hand'
 			: 'passes: solid = straight II, dashed = crossing X · open circle = receives') + '</text>';
+	return s + '</svg>';
+}
+
+/*
+ * Causal diagram of a solo pattern over two cycles as an svg string: rows are
+ * the two hands, and an arrow runs from each throw to the throw its catch
+ * forces — the catching hand's last throw before the prop is thrown again,
+ * which has to empty that hand in time. Holds (the prop stays put) draw no
+ * arrow. An arrow spans the dwell-adjusted value minus 2 global beats.
+ */
+export function causalSvg(sa, sb, cfg, colors, opts) {
+	const { cA, cB, cLine, cSoft } = Object.assign(
+		{ cA: '#16697a', cB: '#c05621', cLine: '#ccc', cSoft: '#888' }, colors);
+	const { labels } = Object.assign({ labels: ['R', 'L'] }, opts);
+	const nA = cfg.nA, nB = cfg.nB;
+	const cycles = 2, cw = 380, x0 = 34, W = x0 + cycles * cw + 40, H = 200;
+	const yA = 56, yB = 150;
+	const X = t => x0 + t * cw;
+	let s = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+		'aria-label="causal diagram over two cycles"><defs>' +
+		'<clipPath id="causal-clip"><rect x="' + (x0 - 8) + '" y="0" width="' + (cycles * cw + 16) + '" height="' + H + '"/></clipPath>';
+	for (const [id, c] of [['A', cA], ['B', cB]])
+		s += '<marker id="causal-head-' + id + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" ' +
+			'orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="' + c + '"/></marker>';
+	s += '</defs>';
+	for (let c = 0; c <= cycles; c++) {
+		const x = X(c);
+		s += '<line x1="' + x + '" y1="20" x2="' + x + '" y2="' + (H - 26) + '" stroke="' + cLine + '" stroke-dasharray="3 4"/>';
+		if (c < cycles) s += '<text x="' + (x + 4) + '" y="14" font-size="11" fill="' + cSoft + '">cycle ' + c + '</text>';
+	}
+	s += '<line x1="' + x0 + '" y1="' + yA + '" x2="' + (W - 30) + '" y2="' + yA + '" stroke="' + cLine + '"/>';
+	s += '<line x1="' + x0 + '" y1="' + yB + '" x2="' + (W - 30) + '" y2="' + yB + '" stroke="' + cLine + '"/>';
+	s += '<text x="8" y="' + (yA + 4) + '" font-size="13" font-weight="700" fill="' + cA + '">' + labels[0] + '</text>';
+	s += '<text x="8" y="' + (yB + 4) + '" font-size="13" font-weight="700" fill="' + cB + '">' + labels[1] + '</text>';
+	const arcs = [], marks = [];
+	const draw = (seq, n, m, y, yOther, color, id) => {
+		for (let c = -2; c < cycles + 1; c++) {
+			seq.throws.forEach((o, i) => {
+				const t1 = c + i / n;
+				if (t1 >= -1e-9 && t1 < cycles - 1e-9)
+					marks.push('<circle cx="' + X(t1) + '" cy="' + y + '" r="3.5" fill="' + color + '"/>');
+				if (o.kind === 'self' && o.v === 0) return;
+				const self = o.kind === 'self';
+				// the catching hand's previous throw before the prop goes up again
+				const t2 = self ? t1 + (o.v - 1) / n : (c * m + o.jAbs - 1) / m;
+				if (self && Math.abs(t2 - t1) < 1e-9) return;
+				if (Math.max(t1, t2) < -0.05 || Math.min(t1, t2) > cycles + 0.05) return;
+				const y2 = self ? y : yOther;
+				// same-hand arrows bow away from the other row, crossing ones
+				// bend a little so arrows between the same beats stay apart
+				const bow = self ? (y < yOther ? -1 : 1) * (12 + 30 * Math.abs(t2 - t1)) : (t2 < t1 ? 18 : 0);
+				const my = self ? y + bow : (y + y2) / 2;
+				arcs.push('<path d="M' + X(t1) + ' ' + y + ' Q' + (X((t1 + t2) / 2) + (self ? 0 : bow)) + ' ' + my +
+					' ' + X(t2) + ' ' + y2 + '" fill="none" stroke="' + color + '" stroke-width="1.6"' +
+					(self ? '' : ' stroke-dasharray="5 4"') + ' marker-end="url(#causal-head-' + id + ')"/>');
+			});
+		}
+	};
+	draw(sa, nA, nB, yA, yB, cA, 'A');
+	draw(sb, nB, nA, yB, yA, cB, 'B');
+	s += '<g clip-path="url(#causal-clip)">' + arcs.join('') + '</g>' + marks.join('');
+	s += '<text x="' + x0 + '" y="' + (H - 8) + '" font-size="11" fill="' + cSoft + '">' +
+		'arrow: a throw → the throw its catch forces · dashed = crossing (X) · holds draw no arrow</text>';
 	return s + '</svg>';
 }

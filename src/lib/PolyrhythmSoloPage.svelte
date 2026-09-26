@@ -8,22 +8,30 @@
 	import Jif from '$lib/jif.mjs';
 	import {
 		generateSolo, buildJifSolo, validatePair, soloJugglingSpeed,
-		soloHandSeq, soloGlobalSeq, timelineSvg, seqToken,
+		soloHandSeq, soloNotation, soloNotationGrid, normalizeSoloNotation, soloNotationBeats,
+		timelineSvg, causalSvg, seqToken,
 	} from '$lib/polyrhythm.mjs';
 
 	// tempo of the faster hand, with the speed slider where it starts. Balls run
 	// quicker than clubs, as they do in hand
 	const fastHandThrowsPerMinute = { ball: 100, club: 85 };
 
-	let nR = 3, nL = 2, minHeight = 2, maxHeight = 10;
+	// left hand faster by default, as in the notation's examples
+	let nR = 2, nL = 3, minHeight = 2, maxHeight = 10;
 	let includeHolds = false, allowZero = false;
 
-	// pattern + settings live in the url so they can be saved and shared
-	let pendingR = null, pendingL = null;
+	// pattern + settings live in the url so they can be saved and shared; the
+	// pattern as its (unadjusted) notation, e.g. ?p=({4II,4X,5X},{2X,3X}), which
+	// also sets the beats per hand. Older links name each hand's sequence by
+	// internal tokens in r and l.
+	let pendingP = null, pendingR = null, pendingL = null;
 	if (typeof window !== 'undefined') {
 		const q = new URLSearchParams(window.location.search);
 		if (q.has('nr')) nR = +q.get('nr');
 		if (q.has('nl')) nL = +q.get('nl');
+		pendingP = q.get('p');
+		const beats = pendingP && soloNotationBeats(pendingP);
+		if (beats) [nL, nR] = beats;
 		if (q.has('hmin')) minHeight = +q.get('hmin');
 		if (q.has('hmax')) maxHeight = +q.get('hmax');
 		if (q.get('holds') === '1') includeHolds = true;
@@ -40,6 +48,7 @@
 	const PAGE = 100;
 	let animationSpeed = defaults.animationSpeed;
 
+	const handColors = { cA: '#c05621', cB: '#16697a' };
 	const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, +v || lo));
 
 	$: regenerate(nR, nL, minHeight, maxHeight, includeHolds, allowZero);
@@ -60,11 +69,17 @@
 		}
 		sel = null;
 		shown = 1;
-		if (res && pendingR != null) {
+		if (res && pendingP != null) {
+			const want = normalizeSoloNotation(pendingP);
+			sel = res.patterns.find(p =>
+				normalizeSoloNotation(soloNotation(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg, false, 'ascii')) === want) || null;
+		} else if (res && pendingR != null) {
 			sel = res.patterns.find(p =>
 				seqToken(res.seqsA[p.ia]) === pendingR && seqToken(res.seqsB[p.ib]) === pendingL) || null;
-			pendingR = pendingL = null;
 		}
+		pendingP = pendingR = pendingL = null;
+		// make a linked pattern visible even when it is far down the list
+		if (sel) shown = Math.floor(res.patterns.indexOf(sel) / PAGE) + 1;
 	}
 
 	let mounted = false;
@@ -77,12 +92,13 @@
 		q.set('hmin', res.cfg.minHeight); q.set('hmax', res.cfg.maxHeight);
 		if (res.cfg.includeHolds) q.set('holds', '1');
 		if (res.cfg.allowZero) q.set('zero', '1');
-		if (sel) {
-			q.set('r', seqToken(res.seqsA[sel.ia]));
-			q.set('l', seqToken(res.seqsB[sel.ib]));
-		}
-		try { replaceState('?' + q.toString(), {}); }
-		catch { history.replaceState(history.state, '', '?' + q.toString()); }
+		let search = q.toString();
+		// brackets, commas and slashes are fine in a query and keep it readable
+		if (sel)
+			search += '&p=' + encodeURIComponent(soloNotation(res.seqsA[sel.ia], res.seqsB[sel.ib], res.cfg, false, 'ascii'))
+				.replace(/%(28|29|2C|7B|7D|2F)/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+		try { replaceState('?' + search, {}); }
+		catch { history.replaceState(history.state, '', '?' + search); }
 	}
 
 	$: ballOptions = res ? [...new Set(res.patterns.map(p => p.balls))].sort((a, b) => a - b) : [];
@@ -94,6 +110,7 @@
 	function buildPattern(p, pt) {
 		const sa = res.seqsA[p.ia], sb = res.seqsB[p.ib];
 		const jifRaw = buildJifSolo(sa, sb, res.cfg, pt);
+		const swapped = Object.assign({}, res.cfg, { nA: res.cfg.nB, nB: res.cfg.nA });
 		const problems = validatePair(sa, sb, res.cfg);
 		let completed = null, warnings = [];
 		try {
@@ -107,7 +124,10 @@
 			jifString: JSON.stringify(jifRaw, null, 2),
 			balls: p.balls, nCross: p.nCross,
 			periodTicks: jifRaw.repetition.period,
-			svg: timelineSvg(sa, sb, res.cfg, null, { solo: true, labels: ['R', 'L'] }),
+			// left hand on top, as in the notation
+			svg: timelineSvg(sb, sa, swapped, handColors, { solo: true, labels: ['L', 'R'] }),
+			causal: causalSvg(sb, sa, swapped, handColors, { labels: ['L', 'R'] }),
+			grids: [soloNotationGrid(sa, sb, res.cfg, false, true), soloNotationGrid(sa, sb, res.cfg, true, true)],
 		};
 	}
 
@@ -144,11 +164,11 @@
 		font-size:0.8em; text-transform:uppercase; letter-spacing:0.06em; color:#555 }
 	.phead select { font-size:1em; max-width:10em }
 	.list { max-height:26em; overflow-y:auto }
-	.row { display:grid; grid-template-columns:1fr 1fr 1.7fr auto; gap:0.8em; align-items:center;
+	.row { display:grid; grid-template-columns:1fr 1fr auto; gap:0.8em; align-items:center;
 		padding:0.35em 0.7em; cursor:pointer; border-bottom:1px solid #eee; font-size:0.95em }
 	.row.hdr { cursor:default; font-size:0.75em; text-transform:uppercase; letter-spacing:0.05em;
 		color:#888; background:#fbfbfb; position:sticky; top:0 }
-	@media (max-width:50em) { .row { grid-template-columns:1fr 1fr; } .row .glob { grid-column:1 / -1 } }
+	@media (max-width:50em) { .row { grid-template-columns:1fr auto; } .row .adj { grid-column:1 / -1 } }
 	.row:hover:not(.hdr) { background:#f0f6f8 }
 	.row.sel { background:#e3eff1; box-shadow:inset 3px 0 0 #16697a }
 	.row .meta { font-size:0.8em; color:#888; white-space:nowrap; text-align:right }
@@ -164,6 +184,12 @@
 	.empty { padding:1.5em; text-align:center; color:#888 }
 
 	.pattern { margin-top:1em }
+	.notations { display:flex; flex-wrap:wrap; gap:0.6em 2.5em; margin:0.6em 0 }
+	.notwrap { overflow-x:auto; max-width:100% }
+	.notlabel { font-size:0.75em; text-transform:uppercase; letter-spacing:0.05em; color:#888 }
+	.notgrid { display:inline-grid; font-size:1.4em; overflow:visible; row-gap:0.1em }
+	.notgrid > span { padding-right:0.35em }
+	.notgrid .brace { text-align:right; padding-right:0 }
 	.patstr { display:grid; grid-template-columns:auto 1fr; gap:0.2em 0.8em; align-items:baseline }
 	.patstr .who { font-weight:700 }
 	.patstr .who.r { color:#16697a } .patstr .who.l { color:#c05621 }
@@ -188,19 +214,27 @@
 </div>
 
 <p>
-	One juggler, hands at different tempos: the <b class=hR>right hand</b> throws {nR}
-	and the <b class=hL>left hand</b> {nL} times per cycle. Values follow <b>vanilla siteswap
-	counting in the throwing hand's own rhythm</b> — a 4 lands two of that hand's beats later,
-	a 2 is a hold (crossing throws land on the other hand's grid, so they carry fractions and an
-	<span class=seqstr><sub class=orient>X</sub></span>). The global notation merges both hands in
-	time order and scales every value to the <b>faster hand's rhythm</b>:
-	<span class=seqstr><sub class=orient>II</sub></span> = stays in the same hand,
-	<span class=seqstr><sub class=orient>X</sub></span> = crosses. Height limits are in global values.
+	One juggler, hands at different tempos: the <b class=hL>left hand</b> throws {nL}
+	and the <b class=hR>right hand</b> {nR} times per cycle.
+</p>
+<p>
+	Patterns are written in the polyrhythmic notation suggested by <b>@don_kuehleon</b>
+	(<i>Polyrhythmic Siteswaps — A need to extend the siteswap notation system?</i>):
+	<span class=seqstr>({'{'}<span class=hL>4,4,4</span>{'}'},{'{'}<span class=hR>6,6</span>{'}'})</span>
+	is one cycle, the <b class=hL>left hand's</b> throws in the first braces and the
+	<b class=hR>right hand's</b> in the second. The faster hand is the beat reference and throws
+	on every second beat, so its values read like any siteswap and all values sum to the number of
+	balls times the cycle's beats. <span class=seqstr><sub class=orient>II</sub></span> = stays in
+	the same hand, <span class=seqstr><sub class=orient>X</sub></span> = crosses to the other hand.
+	The <b>dwell adjusted</b> version (marked °) lowers every throw landing in the slower hand by
+	2(A−B)/B for an A:B polyrhythm: that hand catches earlier and holds on, so both hands stay
+	empty for the same time. It is closer to how high the throws actually are, and the animation
+	follows it. Height limits are in unadjusted values.
 </p>
 
 <div class=controls>
-	<InputField bind:value={nR} type=number id=nr label="beats right" min=1 max=9 defaultValue=3 />
-	<InputField bind:value={nL} type=number id=nl label="beats left" min=1 max=9 defaultValue=2 />
+	<InputField bind:value={nR} type=number id=nr label="beats right" min=1 max=9 defaultValue=2 />
+	<InputField bind:value={nL} type=number id=nl label="beats left" min=1 max=9 defaultValue=3 />
 	<InputField bind:value={minHeight} type=number id=minheight label="min height" min=1 max=18 step=1 defaultValue=2 />
 	<InputField bind:value={maxHeight} type=number id=maxheight label="max height" min=2 max=24 step=1 defaultValue=10 />
 </div>
@@ -220,15 +254,13 @@
 	</div>
 	<div class=list>
 		<div class="row hdr">
-			<span class=hR>right hand</span><span class=hL>left hand</span>
-			<span class=glob>global (faster hand's rhythm)</span><span></span>
+			<span>notation</span><span class=adj>dwell adjusted</span><span></span>
 		</div>
 		{#each list.slice(0, shown * PAGE) as p (p.ia + ':' + p.ib)}
 		<div class=row class:sel={sel === p} on:click={() => sel = p}
 			on:keydown={e => (e.key == 'Enter' || e.key == ' ') && (sel = p)} tabindex=0 role=button>
-			<span class="seqstr hR">{@html soloHandSeq(res.seqsA[p.ia], true)}</span>
-			<span class="seqstr hL">{@html soloHandSeq(res.seqsB[p.ib], true)}</span>
-			<span class="seqstr glob">{@html soloGlobalSeq(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg, true)}</span>
+			<span class=seqstr>{@html soloNotation(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg, false, true)}</span>
+			<span class="seqstr adj">{@html soloNotation(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg, true, true)}</span>
 			<span class=meta>{p.balls} ball{p.balls == 1 ? '' : 's'} · {p.nCross} ✕</span>
 		</div>
 		{/each}
@@ -243,9 +275,24 @@
 {#if pattern}
 <div class=pattern>
 	<div class=patstr>
-		<span class="who r">R</span><span class=seqstr>{@html soloHandSeq(pattern.sa, true)}</span>
 		<span class="who l">L</span><span class=seqstr>{@html soloHandSeq(pattern.sb, true)}</span>
-		<span class=who>&Sigma;</span><span class=seqstr>{@html soloGlobalSeq(pattern.sa, pattern.sb, res.cfg, true)}</span>
+		<span class="who r">R</span><span class=seqstr>{@html soloHandSeq(pattern.sa, true)}</span>
+	</div>
+	<div class=notations>
+		{#each pattern.grids as g, k}
+		<div class=notwrap>
+			<div class=notlabel>{k ? 'dwell adjusted' : 'notation'}</div>
+			<div class="seqstr notgrid" style="grid-template-columns:auto repeat({g.ticks}, 1fr) auto">
+				{#each g.rows as row, r}
+				<span class=brace style="grid-row:{r + 1}; grid-column:1">{r ? '{' : '({'}</span>
+				{#each row as c, i}
+				<span class={r ? 'hR' : 'hL'} style="grid-row:{r + 1}; grid-column:{c.col + 2} / span {c.span}">{@html c.label}{i < row.length - 1 ? ',' : ''}</span>
+				{/each}
+				<span style="grid-row:{r + 1}; grid-column:{g.ticks + 2}">{r ? '})' + (k ? '°' : '') : '},'}</span>
+				{/each}
+			</div>
+		</div>
+		{/each}
 	</div>
 	<div class=badges>
 		<span class=badge>{pattern.balls} ball{pattern.balls == 1 ? '' : 's'}</span>
@@ -288,6 +335,7 @@
 	{/if}
 
 	<div class=svgwrap>{@html pattern.svg}</div>
+	<div class=svgwrap>{@html pattern.causal}</div>
 
 	<div class=jifbtns>
 		<button class=pure-button on:click={openInJifPage}>open in jif editor</button>
