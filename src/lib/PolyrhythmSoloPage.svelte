@@ -164,11 +164,11 @@
 		font-size:0.8em; text-transform:uppercase; letter-spacing:0.06em; color:#555 }
 	.phead select { font-size:1em; max-width:10em }
 	.list { max-height:26em; overflow-y:auto }
-	.row { display:grid; grid-template-columns:1fr 1fr auto; gap:0.8em; align-items:center;
+	.row { display:grid; grid-template-columns:0.8fr 0.8fr 1.4fr 1.4fr auto; gap:0.8em; align-items:center;
 		padding:0.35em 0.7em; cursor:pointer; border-bottom:1px solid #eee; font-size:0.95em }
 	.row.hdr { cursor:default; font-size:0.75em; text-transform:uppercase; letter-spacing:0.05em;
 		color:#888; background:#fbfbfb; position:sticky; top:0 }
-	@media (max-width:50em) { .row { grid-template-columns:1fr auto; } .row .adj { grid-column:1 / -1 } }
+	@media (max-width:50em) { .row { grid-template-columns:1fr 1fr; } .row .not, .row .adj { grid-column:1 / -1 } }
 	.row:hover:not(.hdr) { background:#f0f6f8 }
 	.row.sel { background:#e3eff1; box-shadow:inset 3px 0 0 #16697a }
 	.row .meta { font-size:0.8em; color:#888; white-space:nowrap; text-align:right }
@@ -254,12 +254,15 @@
 	</div>
 	<div class=list>
 		<div class="row hdr">
-			<span>notation</span><span class=adj>dwell adjusted</span><span></span>
+			<span class=hR>right hand</span><span class=hL>left hand</span>
+			<span class=not>notation</span><span class=adj>dwell adjusted</span><span></span>
 		</div>
 		{#each list.slice(0, shown * PAGE) as p (p.ia + ':' + p.ib)}
 		<div class=row class:sel={sel === p} on:click={() => sel = p}
 			on:keydown={e => (e.key == 'Enter' || e.key == ' ') && (sel = p)} tabindex=0 role=button>
-			<span class=seqstr>{@html soloNotation(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg, false, true)}</span>
+			<span class="seqstr hR">{@html soloHandSeq(res.seqsA[p.ia], true)}</span>
+			<span class="seqstr hL">{@html soloHandSeq(res.seqsB[p.ib], true)}</span>
+			<span class="seqstr not">{@html soloNotation(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg, false, true)}</span>
 			<span class="seqstr adj">{@html soloNotation(res.seqsA[p.ia], res.seqsB[p.ib], res.cfg, true, true)}</span>
 			<span class=meta>{p.balls} ball{p.balls == 1 ? '' : 's'} · {p.nCross} ✕</span>
 		</div>
